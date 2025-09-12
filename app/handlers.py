@@ -7,7 +7,7 @@ from aiogram import F,Router,Bot
 
 import random
 from config import ADMIN_ID, TOKEN
-from Odatabase import SessionLocal,User,BroadCast
+from database import SessionLocal,User,BroadCast
 
 from aiogram.enums import ChatMemberStatus
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, UserShared
@@ -421,6 +421,7 @@ async def text_start(message: Message):
             await message.answer('Введи корректое имя.')
     else:
         await message.answer("🌍Подпишитесь на канал", reply_markup=sub_check)
+
 
 
 
