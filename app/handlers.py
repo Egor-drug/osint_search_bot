@@ -325,7 +325,7 @@ async def ip_search(message:Message,state:FSMContext):
 
 
 
-        text = f'Поиск  ️🤖💻📱 прошел успешно:\n\nIP: {ip}\n├ Провайдер: {response.get('isp')}\n├ Организация: {response.get('org')}\n├ Ofset: {response.get("offset")}\n├ Валюта: {response.get("BYR")}\n├ As: {response.get("as")}\n├ As_name: {response.get("asname")}\n├ Мобильный ip:{response.get("mobile")}\n├ Прокси: {response.get("proxy")}\n├ Hosting: {response.get("hosting")}\n├ DNS:{response.get("dns")}\n├ Континент: {response.get("continentCode")}\n├ Страна: {response.get('country')}\n├ Регион: {response.get('regionName')}\n├ Город: {response.get('city')}\n├ ZIP: {response.get('zip')}\n├ Широта: {response.get('lat')}\n└ Долгота: {response.get('lon')}'
+        text = f"Поиск  ️🤖💻📱 прошел успешно:\n\nIP: {ip}\n├ Провайдер: {response.get('isp')}\n├ Организация: {response.get('org')}\n├ Ofset: {response.get('offset')}\n├ Валюта: {response.get('BYR')}\n├ As: {response.get('as')}\n├ As_name: {response.get('asname')}\n├ Мобильный ip:{response.get('mobile')}\n├ Прокси: {response.get('proxy')}\n├ Hosting: {response.get('hosting')}\n├ DNS:{response.get('dns')}\n├ Континент: {response.get('continentCode')}\n├ Страна: {response.get('country')}\n├ Регион: {response.get('regionName')}\n├ Город: {response.get('city')}\n├ ZIP: {response.get('zip')}\n├ Широта: {response.get('lat')}\n└ Долгота: {response.get('lon')}"
 
         await bot_message.edit_text(text)
         await asyncio.sleep(2)
@@ -421,6 +421,7 @@ async def text_start(message: Message):
             await message.answer('Введи корректое имя.')
     else:
         await message.answer("🌍Подпишитесь на канал", reply_markup=sub_check)
+
 
 
 
