@@ -6,8 +6,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram import F,Router,Bot
 
 import random
-from OsintBot.config import ADMIN_ID, TOKEN
-from OsintBot.database import SessionLocal,User,BroadCast
+from config import ADMIN_ID, TOKEN
+from Odatabase import SessionLocal,User,BroadCast
 
 from aiogram.enums import ChatMemberStatus
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, UserShared
@@ -17,7 +17,7 @@ from aiogram.filters import CommandStart,Command
 from aiogram.fsm.state import State,StatesGroup
 from aiogram.fsm.context import FSMContext
 
-from OsintBot.app.keyboard import start_mes,json_user,sub_check
+from app.keyboard import start_mes,json_user,sub_check
 from geopy import Nominatim
 import phonenumbers
 from phonenumbers import timezone,geocoder,carrier,is_possible_number
@@ -421,4 +421,5 @@ async def text_start(message: Message):
             await message.answer('Введи корректое имя.')
     else:
         await message.answer("🌍Подпишитесь на канал", reply_markup=sub_check)
+
 
