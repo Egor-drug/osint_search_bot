@@ -379,18 +379,14 @@ async def ddosing(message:Message,state:FSMContext):
 
 @router.message(F.text == '🕵️ ️Мой профиль')
 async def profile(message:Message):
-    db = SessionLocal()
-
-    user = db.query(User).filter(User.telegram_id == id).first()
-      
-    db.close()
+                                              
     prem = message.from_user.is_premium
     if prem == None:
        prem = "Нету"
     else:
         prem = 'Есть'
 
-    await message.reply(f'Мой профиль🧰:\n\n├ Имя: {message.from_user.full_name}\n├ Username: @{message.from_user.username}\n├ Telegram_Id: {message.from_user.id}\n├ Регистрация:{user.register_at}\n├ Баланс: 0$\n├ Премиум: {prem}\n└ Язык: {message.from_user.language_code}',reply_markup=json_user)
+    await message.reply(f'Мой профиль🧰:\n\n├ Имя: {message.from_user.full_name}\n├ Username: @{message.from_user.username}\n├ Telegram_Id: {message.from_user.id}\n├ Баланс: 0$\n├ Премиум: {prem}\n└ Язык: {message.from_user.language_code}',reply_markup=json_user)
 
 @router.callback_query(F.data =='json')
 async def json(callback:CallbackQuery):
@@ -425,6 +421,7 @@ async def text_start(message: Message):
             await message.answer('Введи корректое имя.')
     else:
         await message.answer("🌍Подпишитесь на канал", reply_markup=sub_check)
+
 
 
 
