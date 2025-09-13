@@ -381,7 +381,7 @@ async def ddosing(message:Message,state:FSMContext):
 async def profile(message:Message):
     db = SessionLocal()
 
-    register_at = db.query(User.register_at).filter(User.id == message.from_user.id).count()
+    register_at = db.query(User.register_at).filter(User.id == message.from_user.id)
     db.close()
     prem = message.from_user.is_premium
     if prem == None:
@@ -424,4 +424,5 @@ async def text_start(message: Message):
             await message.answer('Введи корректое имя.')
     else:
         await message.answer("🌍Подпишитесь на канал", reply_markup=sub_check)
+
 
