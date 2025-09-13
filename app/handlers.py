@@ -33,10 +33,6 @@ CHANEl_ID = '-1002939673303'
 ADMIN_ID = ADMIN_ID
 
 
-api_id = 20880015
-api_hash = '1afaf973893798968502dfe925360345'
-
-
 
 
 class Ip(StatesGroup):
@@ -57,7 +53,7 @@ async def  check_member(chat_member,message:Message):
     try:
         chat_member = await bot.get_chat_member(chat_id=CHANEl_ID,user_id=message.from_user.id)
         print(chat_member.status)
-        if  chat_member.status == ChatMemberStatus.LEFT :
+        if  chat_member.status == ChatMemberStatus.LEFT:
             return False
         else:
             return True
@@ -176,12 +172,13 @@ async def stats(message:Message):
     total_users = db.query(User).count()
     active_users = db.query(User).filter(User.active == True).count()
     db.close()
-    text = f'📊 Статистика:\n\n├ Всего 👀 пользователей в боте : {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/phone_osint_up_bot'
+    text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/phone_osint_up_bot'
     await message.answer(f'{text}',reply_markup=start_mes)
 @router.message(F.content_type == ContentType.CONTACT)
 async def contact_share(message:Message):
     if await check_member(CHANEl_ID, message):
        await message.answer('Идет поиск 🔎 информации...')
+       await asyncio.sleep(1.5)
        contact = message.contact
        vcard = contact.vcard
 
@@ -190,6 +187,7 @@ async def contact_share(message:Message):
        first_name = contact.first_name
        last_name = contact.last_name if contact.last_name else ""
        user_id = contact.user_id
+       name_json= contact.json()
 
        tg_phone = f'https://t.me/{phone_number}'
        wt_phone = f'https://wa.me/{phone_number}'
@@ -204,7 +202,8 @@ async def contact_share(message:Message):
        ├ Номер: {phone_number}
        ├ Имя: {first_name}
        ├ Фамилия: {last_name}
-       ├ ID пользователя:{user_id}
+       ├ ID пользователя: {user_id}
+       ├ Json: {name_json}
        └ vCard: {vcard}
      
         """
@@ -380,13 +379,17 @@ async def ddosing(message:Message,state:FSMContext):
 
 @router.message(F.text == '🕵️ ️Мой профиль')
 async def profile(message:Message):
+    db = SessionLocal()
+
+    register_at = db.query(User.register_at).filter(User.id == message.from_user.id).count()
+    db.close()
     prem = message.from_user.is_premium
     if prem == None:
        prem = "Нету"
     else:
         prem = 'Есть'
 
-    await message.reply(f'Мой профиль🧰:\n\n├ Имя: {message.from_user.full_name}\n├ Username: @{message.from_user.username}\n├ Telegram_Id: {message.from_user.id}\n├ Баланс: 0$\n├ Премиум: {prem}\n└ Язык: {message.from_user.language_code}',reply_markup=json_user)
+    await message.reply(f'Мой профиль🧰:\n\n├ Имя: {message.from_user.full_name}\n├ Username: @{message.from_user.username}\n├ Telegram_Id: {message.from_user.id}\n├ Регистрация:{register_at}\n├ Баланс: 0$\n├ Премиум: {prem}\n└ Язык: {message.from_user.language_code}',reply_markup=json_user)
 
 @router.callback_query(F.data =='json')
 async def json(callback:CallbackQuery):
@@ -421,8 +424,4 @@ async def text_start(message: Message):
             await message.answer('Введи корректое имя.')
     else:
         await message.answer("🌍Подпишитесь на канал", reply_markup=sub_check)
-
-
-
-
 
