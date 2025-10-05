@@ -1,23 +1,27 @@
 import asyncio
 import requests
-
+from bs4 import BeautifulSoup
 from faker import Faker
-from aiogram.fsm.storage.memory import MemoryStorage
+from telethon import TelegramClient
 from aiogram import F,Router,Bot
-
+from telethon.errors import SessionPasswordNeededError, PhoneCodeExpiredError,PhoneCodeInvalidError
 import random
+import re
+from aiogram.exceptions import TelegramNotFound
+
+
 from config import ADMIN_ID, TOKEN
 from database import SessionLocal,User,BroadCast
 
 from aiogram.enums import ChatMemberStatus
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, UserShared
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.enums import ContentType
-from aiogram.types import CallbackQuery,Message
+from aiogram.types import CallbackQuery,Message,PreCheckoutQuery,LabeledPrice
 from aiogram.filters import CommandStart,Command
 from aiogram.fsm.state import State,StatesGroup
 from aiogram.fsm.context import FSMContext
 
-from app.keyboard import start_mes,json_user,sub_check
+from app.keyboard import start_mes,json_user,sub_check,menu_mes,ip_get
 from geopy import Nominatim
 import phonenumbers
 from phonenumbers import timezone,geocoder,carrier,is_possible_number
@@ -28,12 +32,31 @@ bot = Bot(token=TOKEN)
 fake = Faker()
 
 
+Currency = 'XTR'
 
 CHANEl_ID = '-1002939673303'
 ADMIN_ID = ADMIN_ID
+api_id = 20880015
+
+api_hash = '1afaf973893798968502dfe925360345'
 
 
 
+headers = {
+    "Referer": "https://www.google.com/"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+}
+
+class Email(StatesGroup):
+    email = State()
+class Account(StatesGroup):
+    phone_num = State()
+    code = State()
+    password = State()
+class Send(StatesGroup):
+    phone_account = State()
+    id_chat = State()
+    message_to = State()
 
 class Ip(StatesGroup):
       ip_adress = State()
@@ -62,11 +85,15 @@ async def  check_member(chat_member,message:Message):
 
 
 
+payment = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Оплатить ⭐',pay=True)]
+])
+
 def admin_main_menu():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊‍Статистика",callback_data='stats')],
-        [InlineKeyboardButton(text='✉️Рассылка',callback_data='broadcast')],
-        [InlineKeyboardButton(text='⚙️Доп настройки',callback_data='settings')]
+        [InlineKeyboardButton(text="📊‍ Статистика",callback_data='stats')],
+        [InlineKeyboardButton(text='✉️ Рассылка',callback_data='broadcast')],
+        [InlineKeyboardButton(text='⚙️ Доп настройки',callback_data='settings')]
     ])
     return keyboard
 def back_menu():
@@ -74,7 +101,6 @@ def back_menu():
         [InlineKeyboardButton(text='Back',callback_data='back')],
     ])
     return keyboard
-
 
 @router.message(Command("admin"))
 async def admin_panel(message:Message):
@@ -137,7 +163,7 @@ async def start(message:Message):
            db.commit()
        db.close()
 
-       await message.answer_photo(photo='https://avatars.mds.yandex.net/i?id=769d260e9f9b31f55a982b64733f53ce-4902121-images-thumbs&n=13',caption=f"Привет {message.from_user.full_name} я бот  🔎 для <b>Osint</b>💻\nпробива,поиска пользователей тг .\nВы подписаны на уведомления всегда  📫 !\nУдачи тебе пробить жертву.\n\n",parse_mode='HTML',reply_markup=start_mes)
+       await message.answer_photo(photo='https://avatars.mds.yandex.net/i?id=026e7b7cf40d328b163e1db7cab9bed337c2b49e-5682063-images-thumbs&n=13',caption=f"Привет, детектив {message.from_user.first_name}! 🕵️‍♂️ Готов к расследованию? Отправляй мне любую зацепку: номер, никнейм, фото или ссылку. Я помогу найти то, что скрыто в цифровой тени. Вместе мы раскроем любое дело! 🔍✨ Включай логику и давай начинать. Жду твою первую задачу!",parse_mode='HTML',reply_markup=start_mes)
     else:
         await message.answer("🌍 Подпишитесь на канал",reply_markup=sub_check)
 
@@ -166,6 +192,33 @@ async def search(message:Message):
     await asyncio.sleep(2)
     await message.answer("🤖Поиск завершен",reply_markup=start_mes)
 
+@router.message(F.text == '📖 Меню')
+async def menu(message:Message):
+    await message.answer('Меню для пользователя ',reply_markup=menu_mes)
+
+
+@router.message(F.text == '💰 Пополнить')
+async def money_key(message:Message):
+
+    prices = [LabeledPrice(label="XTR",amount=15)]
+
+    await message.answer_invoice(
+        title='Поддержка бота 💰',
+        description='Поддрежка звездами ⭐',
+        prices=prices,
+        provider_token='',
+        payload='channel_support',
+        currency=Currency,
+        reply_markup=payment,
+    )
+@router.pre_checkout_query()
+async def prechekout_query(pre_checkout_query:PreCheckoutQuery):
+    await pre_checkout_query.answer(ok=True)
+
+@router.message(F.successful_payment)
+async def successful_payment(message:Message):
+    await message.answer(f'{message.successful_payment.telegram_payment_charge_id}',message_effect_id="5104841245755180586")
+
 @router.message(F.text == '📊 Статистика')
 async def stats(message:Message):
     db = SessionLocal()
@@ -173,24 +226,74 @@ async def stats(message:Message):
     active_users = db.query(User).filter(User.active == True).count()
     db.close()
     text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/phone_osint_up_bot'
-    await message.answer(f'{text}',reply_markup=start_mes)
+    await message.answer(f'{text}')
+
 @router.message(F.content_type == ContentType.CONTACT)
 async def contact_share(message:Message):
     if await check_member(CHANEl_ID, message):
        await message.answer('Идет поиск 🔎 информации...')
        await asyncio.sleep(1.5)
+
        contact = message.contact
-       vcard = contact.vcard
+       phone_num = contact.phone_number.strip()
+
+       phone_number = phonenumbers.parse(phone_num)
+       possible2 = phonenumbers.is_possible_number(phone_number)
+       carrier2 = carrier.name_for_number(phone_number, 'ru')
+
+       geocoder2 = geocoder.description_for_number(phone_number, "ru")
+       timezone2 = timezone.time_zones_for_number(phone_number)
+       valid2 = phonenumbers.is_valid_number(phone_number)
+
+
+
 
        # Извлекаем данные
        phone_number = contact.phone_number
        first_name = contact.first_name
        last_name = contact.last_name if contact.last_name else ""
        user_id = contact.user_id
-       name_json= contact.json()
+
+       phone_not = phone_number.replace('+','')
+       phone = phone_not.replace(' ','')
+       fl_name = f'{first_name}{last_name}'
+       name_fio = fl_name.replace(' ','')
+
+       url5 = f'https://callapp.com/search-result/{phone_number}'
+
+       response = requests.get(url5, headers=headers)
+
+       html_text = response.content
+       soup = BeautifulSoup(html_text, 'html.parser')
+       text_name = soup.find(class_='number')
+       text_fraer = text_name.text.replace(" ", "").strip()
+
 
        tg_phone = f'https://t.me/{phone_number}'
        wt_phone = f'https://wa.me/{phone_number}'
+       url = f'https://avtomusic-nn.ru/{phone}'
+       url1 = f'https://my.mail.ru/my/search_people?&name={name_fio}'
+       text_mail = requests.get(url1,headers=headers)
+       text_html1 = text_mail.content
+       soupec = BeautifulSoup(text_html1, 'html.parser')
+
+       infor = soupec.find(class_='b-search__users__list')
+
+       text_url= infor.text
+
+       text_style = requests.get(url, headers=headers)
+       text_html = text_style.content
+
+       soup = BeautifulSoup(text_html, 'html.parser')
+
+       infa = soup.find(class_='jumbotron')
+
+       text_from_url = infa.text.strip()
+
+       if text_url == None:
+           text_url = "Запрос не дал результат"
+       else:
+           text_url = text_url
 
        keyboards_start = InlineKeyboardMarkup(inline_keyboard=[[
            InlineKeyboardButton(text='Telegram', url=tg_phone),
@@ -199,15 +302,84 @@ async def contact_share(message:Message):
 
        response = f"""
        📞 Получен контакт:
-       ├ Номер: {phone_number}
-       ├ Имя: {first_name}
+       ├ 📲 Номер: {phone_number}
+       ├ Регион: {timezone2}
+       ├ Страна: {geocoder2}
+       ├ Валид: {valid2}
+       ├ Существует: {possible2}
+       ├ 🎞️ Оператор: {carrier2}
+       ├ <b>Основные</b>:
+       ├ 📛 Имя: {first_name}
+       ├ Сайт :{text_from_url}
        ├ Фамилия: {last_name}
-       ├ ID пользователя: {user_id}
-       ├ Json: {name_json}
-       └ vCard: {vcard}
-     
+       ├ Mail.ru:{text_url}
+       ├ Рейтинт ⭐:{text_fraer}
+       └ ID пользователя: {user_id}
+      
         """
-       await message.answer(f'{response}',reply_markup=keyboards_start)
+       await message.answer(f'{response}',parse_mode='HTML',reply_markup=keyboards_start)
+
+@router.message(F.text == '📧 E-mail')
+async def email_osint(message:Message,state:FSMContext):
+
+    await message.answer('Введи email 👤 обидчика')
+    await state.set_state(Email.email)
+
+@router.message(Email.email)
+async def email_ok(message:Message,state:FSMContext):
+    email = message.text.strip()
+    username = email.split('@')[0]
+
+    if "mail.ru" in email:
+        url = f'https://xn--80ajiff1g.com/email/{email}#result'
+        response = requests.get(url,headers=headers)
+        html_content = response.content
+
+        soup = BeautifulSoup(html_content,'html.parser')
+        email_information = soup.find(class_='response-data-col-1 response-email')
+        text_email = email_information.text.strip()
+
+
+        tik_tok = f'https://tiktok.com/search?q={email}'
+        porn_hub= f'https://opornhub.org/user/search?username={username}'
+        facebook = f'https://facebook.com/search/top/?q={email}'
+        youtube = f'https://youtube.com/results?search_query={email}'
+        instagram = f'https://instagram.com/{username}'
+        tg = f'https://t.me/{username}'
+        vk = f'https://vk.com/search?c%5Bname%5D=1&c%5Bsection%5D=people&c%5Bq%5D={username}'
+        roblox = f'https://web.roblox.com/search/users?keyword={username}'
+        twiter = f'https://x.com/search?q={username}&f=user'
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='Youtube',url=youtube),InlineKeyboardButton(text='Facebook',url=facebook)],
+            [InlineKeyboardButton(text='TikTok',url=tik_tok),InlineKeyboardButton(text='Vk',url=vk)],
+            [InlineKeyboardButton(text='Telegram',url=tg),InlineKeyboardButton(text='Instagram',url=instagram)],
+            [InlineKeyboardButton(text='Roblox',url=roblox),InlineKeyboardButton(text='Twitter',url=twiter)],
+            [InlineKeyboardButton(text='Сайт',url=porn_hub)]
+        ])
+
+
+
+        pattern = r'Почта(?P<email>[^И]+)Интересовались(?P<people>\d+)\sчеловекИмя(?P<name>[^С]*)Сведения[^Т]*Телефоны(?P<phone>[^M]+)Mail\.ru ID почты(?P<id>\w+)'
+
+        match = re.search(pattern, text_email)
+        if match:
+            data = match.groupdict()
+
+            email_sea = data.get('people', '')
+            email_name = data.get('name', '')
+            telephone = data.get('phone', '')
+            email_id =  data.get('id', '')
+
+            await message.answer(f'<b>Email пробит:</b>\n\nОсновная информация:\n├ ✅ Email: {email}\n├ 👁 Сколько искали: {email_sea}\n\n├ Номер 📲: {telephone}\n├ ID : {email_id}\n├ 💬 Email_name : {email_name}\n\n├ <b>Tiktok</b>: {tik_tok}',parse_mode='HTML',reply_markup=keyboard)
+            await state.clear()
+    else:
+        await message.answer('Этот email не поддерживается 📝 ',reply_markup=start_mes)
+        await state.clear()
+
+
+
+
 
 @router.message(F.text == 'Поиск по номеру 📱')
 async def tele_osint(message:Message,state:FSMContext):
@@ -220,8 +392,59 @@ async def tele_infa(message:Message,state:FSMContext):
     await state.update_data(telephone = message.text)
 
     phone = message.text
+    phone_number = phonenumbers.parse(phone)
     phone_valid = phone.replace(' ', '')
-    if not int(phone):
+    phone_not = phone_valid.replace('+','')
+    geocoder1 = geocoder.description_for_number(phone_number, "ru")
+
+    link = f'https://spravochnik109.link/byelarus/mobilnaya-svyaz/vyelkom-mobilnyj-opyerator/vyelkom-mobilnyye-tyelyefony?phone=%2B{phone_not}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#google_vignette'
+
+    response = requests.get(link, headers=headers)
+
+    html_txt = response.content
+    soup = BeautifulSoup(html_txt, 'html.parser')
+    text_fio = soup.find(class_='res')
+    fio_name = ''
+    if text_fio == None:
+        fio_name = 'Информация не найдена'
+
+    else:
+        fio_name = text_fio.text
+
+    fio_text = fio_name.replace("Телефоны", "").strip()
+    name_user = re.sub(r'[^\w\s]+|[\d]+', r'', fio_text)
+    sure_name = name_user.replace(' XXX','')
+    resultat = ' '.join(sure_name.split()[:2])
+    name_and_fio = resultat.split()
+    sure_name_info = name_and_fio[0].strip()
+    name_people= name_and_fio[1].strip()
+
+
+    linked = f'https://botsman.org/country/search/?country=&countryid=1&city=&cityid=1143628&first_name={name_people}&last_name={sure_name_info}&familyid=0&s=city'
+    respon_from_linked = requests.get(link, headers=headers)
+
+
+    html_linked= respon_from_linked.content
+    soup = BeautifulSoup(html_linked, 'html.parser')
+    text_infa = soup.find(class_='col-sm-10 col-xs-8')
+    information = ''
+    if text_infa == None:
+        information = 'Информация не найдена'
+
+    else:
+        information = text_infa.text
+
+    osnov_infa = information.replace("Подробнее", "")
+
+    url = f'https://callapp.com/search-result/{phone_not}'
+
+    response = requests.get(url, headers=headers)
+
+    html_text = response.content
+    soup = BeautifulSoup(html_text, 'html.parser')
+    text_name = soup.find(class_='number')
+    text_fraer = text_name.text.replace(" ","").strip()
+    if not str(phone):
         await message.answer("Введите корректный номер телефона📱")
         await state.clear()
     elif len(phone_valid) < 10:
@@ -229,11 +452,11 @@ async def tele_infa(message:Message,state:FSMContext):
         await state.clear()
     else:
        num_dump = random.randint(0,6)
-       phone_number = phonenumbers.parse(phone)
+
        possible = phonenumbers.is_possible_number(phone_number)
        carrier1 = carrier.name_for_number(phone_number, 'ru')
 
-       geocoder1 = geocoder.description_for_number(phone_number, "ru")
+
        timezone1 = timezone.time_zones_for_number(phone_number)
        valid = phonenumbers.is_valid_number(phone_number)
 
@@ -245,7 +468,7 @@ async def tele_infa(message:Message,state:FSMContext):
            valid = 'Нет'
        await asyncio.sleep(2)
 
-       guest_phone_number = phone_valid
+
        tg_id = f'https://tg-user.id/from/username/'
 
 
@@ -262,24 +485,28 @@ async def tele_infa(message:Message,state:FSMContext):
            text_email = 'Ничего не найдено'
        elif num_dump == 1:
             text_email = fake.email()
+            text_email = text_email.replace('@example.net', '@gmail.com')
 
        elif num_dump == 2:
            first_txt = fake.email()
            second_txt = fake.email()
-           text_email = first_txt,second_txt
+           text_email = f'{first_txt} {second_txt}'
+           text_email = text_email.replace('@example.net', '@gmail.com')
 
        elif num_dump == 3:
            first_txt = fake.email()
            second_txt = fake.email()
            third_txt = fake.email()
-           text_email = first_txt, second_txt,third_txt
+           text_email = f'{first_txt} {second_txt} {third_txt}'
+           text_email = text_email.replace('@example.net', '@gmail.com')
 
        elif num_dump == 4:
            first_txt = fake.email()
            second_txt = fake.email()
            third_txt = fake.email()
            four_txt = fake.email()
-           text_email = first_txt, second_txt, third_txt,four_txt
+           text_email = f'{first_txt} {second_txt} {third_txt} {four_txt}'
+           text_email = text_email.replace('@example.net','@gmail.com')
 
        elif num_dump == 5:
            first_txt = fake.email()
@@ -287,7 +514,8 @@ async def tele_infa(message:Message,state:FSMContext):
            third_txt = fake.email()
            four_txt = fake.email()
            firth_txt = fake.email()
-           text_email = first_txt, second_txt, third_txt,four_txt,firth_txt
+           text_email = f'{first_txt} {second_txt} {third_txt} {four_txt} {firth_txt}'
+           text_email = text_email.replace('@example.net', '@gmail.com')
 
        elif num_dump == 6:
            first_txt = fake.email()
@@ -296,50 +524,138 @@ async def tele_infa(message:Message,state:FSMContext):
            four_txt = fake.email()
            firth_txt = fake.email()
            six_txt = fake.email()
-           text_email = first_txt, second_txt, third_txt,four_txt,firth_txt,six_txt
+           text_email = f'{first_txt} {second_txt} {third_txt} {four_txt} {firth_txt} {six_txt}'
+           text_email = text_email.replace('@example.net', '@gmail.com')
 
+       text_osint = f'Поиск  ️🤖💻📱 прошел успешно:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: {osnov_infa}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
 
-       text_osint = f'Поиск  ️🤖💻📱 прошел успешно:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Валид: {valid}\n└ Существует: {possible}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
+       if sure_name == 'Информация не найдена':
+           text_osint = f'Поиск  ️🤖💻📱 прошел успешно:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Валид: {valid}\n└ Существует: {possible}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
 
-       await bot_message.reply(text_osint,reply_markup=keyboard)
+       await bot_message.reply(text_osint,parse_mode='HTML',reply_markup=keyboard)
 
     await asyncio.sleep(1)
     await message.answer('Поиск закончился все данные вверху.',reply_markup=start_mes)
 
     await state.clear()
 
+@router.message(Command('send'))
+async def start_send(message:Message,state:FSMContext):
+    if await check_member(CHANEl_ID, message):
+       await state.set_state(Send.phone_account)
+       await message.answer('Введите номер 📲 телефона подключеного аккаунта.')
+    else:
+        await message.answer("🌍 Подпишитесь на канал",reply_markup=sub_check)
+
+@router.message(Send.phone_account)
+async def phone_start_account(message:Message,state:FSMContext):
+    telephone = message.text.strip()
+    telephone_hash = telephone.replace(' ','')
+    telephone_from_hash = telephone_hash.replace('+','')
+
+    file_path = f'session_{telephone_from_hash}'
+    file_check = ''
+    try:
+        with open(file_path, 'r'):
+            file_check = 'да'
+
+    except FileNotFoundError:
+        file_check = 'нет'
+
+    if file_check == 'да':
+       await message.answer('Введите ID чата в Телеграмме')
+       await state.update_data(phone_account = telephone_from_hash)
+       await state.set_state(Send.id_chat)
+    else:
+        await message.answer('Извините но такой сессии нет.')
+        await state.clear()
+
+@router.message(Send.id_chat)
+async def send_chat_id(message:Message,state:FSMContext):
+    chat_id =str(message.text.strip())
+    await state.update_data(id_chat = chat_id)
+    await message.answer('Введите сообщение которое хотите отправить с аккаунта')
+    await state.set_state(Send.message_to)
+
+@router.message(Send.message_to)
+async def message_to_send(message:Message,state:FSMContext):
+    message_from_user = message.text.strip()
+    data = await state.get_data()
+    chat_id = data['id_chat']
+    telephone_from_hash = data['phone_account']
+
+    file_path = f'session_{telephone_from_hash}'
+
+
+    async with TelegramClient(file_path,api_id,api_hash) as client:
+        try:
+            await client.send_message(chat_id, message_from_user)
+            await message.answer(f'✅ Успешно.Сообщение отправлено с аккаунта пользователя.',reply_markup=start_mes)
+            await state.clear()
+        except TelegramNotFound:
+            await message.answer('Извините но такого чата нету.',reply_markup=start_mes)
+            await state.clear()
+
+@router.message(F.content_type == ContentType.PHOTO)
+async def search_photo(message:Message):
+
+    search_site = 'https://search4faces.com'
+    google_search = 'https://images.google.com'
+    yandex_search = 'https://yandex.ru/images/'
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='👁 Yandex',url=yandex_search),InlineKeyboardButton(text='👁 Google',url=google_search)],
+        [InlineKeyboardButton(text='👁 Сайт',url=search_site)]
+    ])
+    await message.answer('🔎 Фото человека можно найти ниже ⬇️',reply_markup=keyboard)
+
+
+
+
+
 
 @router.message(F.text == '🔎 Поиск по IP')
 async def ip_osint(message:Message,state:FSMContext):
     await state.set_state(Ip.ip_adress)
-    await message.answer('Введите Ip адресс жертвы')
+    await message.answer('Введите Ip адресс жертвы',reply_markup=ip_get)
 
 @router.message(Ip.ip_adress)
 async def ip_search(message:Message,state:FSMContext):
     bot_message = await message.answer('Идет поиск 🔎 информации...')
     await state.update_data(ip_adress=message.text)
-    ip = message.text
-    try:
-        response = requests.get(url=f'http://ip-api.com/json/{ip}').json()
+    ip = message.text.strip()
+
+    response = requests.get(url=f'http://ip-api.com/json/{ip}').json()
+    country = response.get('country')
+    if len(ip) < 10:
+        await message.answer('Введи Ip коректно...')
+        await state.clear()
+    elif country == None:
+        await message.answer('Увы информация не 📝 найдена. Такого IP не существует 💣.',reply_markup=start_mes)
+        await state.clear()
+    else:
+
+        try:
 
 
 
-        text = f"Поиск  ️🤖💻📱 прошел успешно:\n\nIP: {ip}\n├ Провайдер: {response.get('isp')}\n├ Организация: {response.get('org')}\n├ Ofset: {response.get('offset')}\n├ Валюта: {response.get('BYR')}\n├ As: {response.get('as')}\n├ As_name: {response.get('asname')}\n├ Мобильный ip:{response.get('mobile')}\n├ Прокси: {response.get('proxy')}\n├ Hosting: {response.get('hosting')}\n├ DNS:{response.get('dns')}\n├ Континент: {response.get('continentCode')}\n├ Страна: {response.get('country')}\n├ Регион: {response.get('regionName')}\n├ Город: {response.get('city')}\n├ ZIP: {response.get('zip')}\n├ Широта: {response.get('lat')}\n└ Долгота: {response.get('lon')}"
 
-        await bot_message.edit_text(text)
-        await asyncio.sleep(2)
-        coordinates = f"{response.get('lat')},{response.get('lon')}"
-        nominaltim = Nominatim(user_agent='user')
-        location = nominaltim.reverse(coordinates)
+            text = f"Поиск  ️🤖💻📱 прошел успешно:\n\nIP: {ip}\n├ Провайдер: {response.get('isp')}\n├ Организация: {response.get('org')}\n├ Ofset: {response.get('offset')}\n├ Валюта: {response.get('BYR')}\n├ As: {response.get('as')}\n├ As_name: {response.get('asname')}\n├ Мобильный ip:{response.get('mobile')}\n├ Прокси: {response.get('proxy')}\n├ Hosting: {response.get('hosting')}\n├ DNS:{response.get('dns')}\n├ Континент: {response.get('continentCode')}\n├ Страна: {response.get('country')}\n├ Регион: {response.get('regionName')}\n├ Город: {response.get('city')}\n├ ZIP: {response.get('zip')}\n├ Широта: {response.get('lat')}\n└ Долгота: {response.get('lon')}"
+
+            await bot_message.edit_text(text)
+            await asyncio.sleep(2)
+            coordinates = f"{response.get('lat')},{response.get('lon')}"
+            nominaltim = Nominatim(user_agent='user')
+            location = nominaltim.reverse(coordinates)
 
 
 
-        await message.answer_location(latitude=response.get('lat'),longitude=response.get('lon'))
-        await message.answer(f'-- Поиск по координатам 🌍:\n\n{str(location)}', reply_markup=start_mes)
+            await message.answer_location(latitude=response.get('lat'),longitude=response.get('lon'))
+            await message.answer(f'-- Поиск по координатам 🌍:\n\n{str(location)}', reply_markup=start_mes)
 
-    except requests.exceptions.ConnectionError:
-        await message.answer('Увы информация не найдена')
-    await state.clear()
+        except requests.exceptions.ConnectionError:
+            await message.answer('Увы информация не найдена')
+        await state.clear()
 
 @router.message(F.text == '💼 Простой Ddos')
 async def ddos_start(message:Message,state:FSMContext):
@@ -379,7 +695,7 @@ async def ddosing(message:Message,state:FSMContext):
 
 @router.message(F.text == '🕵️ ️Мой профиль')
 async def profile(message:Message):
-                                              
+
     prem = message.from_user.is_premium
     if prem == None:
        prem = "Нету"
@@ -393,34 +709,164 @@ async def json(callback:CallbackQuery):
     jsons = callback.from_user.json()
     await callback.answer('')
     await callback.message.answer(f"{jsons}")
+@router.message(F.text == '👤 Аккаунт')
+async def account_login(message:Message,state:FSMContext):
 
-@router.message(F.text[0] == "@")
-async def text_start(message: Message):
-    if await check_member(CHANEl_ID, message):
-        username = message.text
-        user_first = username.replace("@", "")
-        first_letter = username[0]
+    await state.set_state(Account.phone_num)
+    await message.answer('Введи номер телефона 📲')
 
-        if first_letter == '@':
+@router.message(Account.phone_num)
+async def account_log(message:Message,state:FSMContext):
 
-            await message.answer('Идет поиск 🔎 информации...')
-            url = f'https://tg-user.id/from/username/{user_first}'
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text='Узнать', url=url)],
-                [
-                    InlineKeyboardButton(
-                        text='Telegram',
-                        url=f'https://telegram.me/{user_first}')
-                ]
-            ])
-            await message.answer(
-                f"Пользователь найден:\nUsername : {username}",
-                reply_markup=keyboard)
+    phone_nep = message.text.strip()
+    phone_to_hash = phone_nep.replace(' ','')
+    phone_from_hash = phone_to_hash.replace('+','')
+    file_path = f'session_{phone_from_hash}'
+
+    file_check = ''
+    try:
+        with open(file_path, 'r'):
+            file_check = 'да'
+            print(file_check)
+
+    except FileNotFoundError:
+        file_check = 'нет'
+        print(file_check)
+
+    if file_check == 'да':
+        await message.answer('Такая сессия уже существует')
+        await state.clear()
+    else:
+
+        client = TelegramClient(f'session_{phone_to_hash}',
+                            api_id, api_hash)
+
+        await client.connect()
+
+        send_code = await client.send_code_request(phone=phone_nep)
+
+        await state.update_data(phone_num=phone_nep,hashing = send_code.phone_code_hash)
+
+        print("Dada")
+
+
+
+    await message.answer('Введи код который пришел, чтоб подключить ваш Telegram')
+    await state.set_state(Account.code)
+
+@router.message(Account.code)
+async def account_code_sent(message:Message,state:FSMContext):
+
+    data = await state.get_data()
+    phone_nep = data['phone_num']
+
+    code = message.text.strip()
+    client = TelegramClient(f'session_{phone_nep}',
+                            api_id, api_hash)
+    if len(code) != 5:
+        await message.answer("❌ Код должен содержать 5 цифр. Попробуй еще раз:")
+        return
+
+    await state.update_data(code = message.text)
+    data = await state.get_data()
+    hashing = data['hashing']
+    phone = data['phone_num']
+
+    try:
+        await client.connect()
+        await client.sign_in(
+            phone=phone,
+            code=code,
+            phone_code_hash=hashing
+
+        )
+
+
+        if await client.is_user_authorized():
+
+            me = await client.get_me()
+            await message.answer(f'✅ Аккаунт @{me.username} успешно подключен!')
+
+            await client.disconnect()
 
         else:
-            await message.answer('Введи корректое имя.')
+            await message.answer('❌ Не удалось авторизоваться')
+
+        await state.clear()
+
+    except SessionPasswordNeededError:
+        await state.update_data(code=code)
+        await message.answer('🔒 Введите пароль двухфакторной аутентификации:')
+        await state.set_state(Account.password)
+
+    except PhoneCodeInvalidError:
+        await message.answer('❌ Неверный код. Попробуйте еще раз:')
+
+    except Exception as e:
+
+        await message.answer(f'❌ Ошибка при входе. Попробуйте снова{e}.')
+        await state.clear()
+    except PhoneCodeExpiredError:
+        # 3. Если код "истек" - запрашиваем новый и пробуем сразу
+        print("🔄 Запрашиваем новый код и пробуем сразу...")
+        new_sent_code = await client.send_code_request(phone)
+
+        # Пробуем войти с НОВЫМ кодом сразу
+        try:
+            await client.sign_in(
+                phone=phone,
+                code=code,  # Тот же код!
+                phone_code_hash=new_sent_code.phone_code_hash
+
+            )
+            await client.disconnect()
+            return "✅ Успешный вход! Проблема была в phone_code_hash"
+
+        except PhoneCodeExpiredError:
+            return "❌ Код действительно недействителен"
+
+
+
+
+
+
+
+
+
+
+@router.message(Account.password)
+async def password_sign_in(message:Message,state:FSMContext):
+    user_id = message.from_user.id
+
+
+    passworder = message.text.strip()
+    data = await state.get_data()
+    phone = data['phone_num']
+    client = TelegramClient(f'session_{phone}',
+                            api_id, api_hash)
+    code = data['code']
+    hashing = data['hashing']
+
+    await client.sign_in(password=passworder,phone_code_hash=hashing)
+
+    await state.clear()
+
+
+@router.message(F.text.startswith('@'))
+async def user_osint(message:Message):
+    username = message.text.strip()
+    not_start = username.replace('@','')
+    if len(username) <=2:
+        await message.answer('Введите коректный username',reply_markup=start_mes)
     else:
-        await message.answer("🌍Подпишитесь на канал", reply_markup=sub_check)
+        url_for_user = f'https://t.me/{not_start}'
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='Telegram',url=url_for_user)]
+        ])
+
+        await message.answer(f'Пользователь найден:\nUsername : {username}',reply_markup=keyboard)
+
 
 
 
