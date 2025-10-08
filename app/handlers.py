@@ -330,13 +330,16 @@ async def email_ok(message:Message,state:FSMContext):
     email = message.text.strip()
     username = email.split('@')[0]
 
-    if "mail.ru" in email:
+    if "@mail.ru" in email:
         url = f'https://xn--80ajiff1g.com/email/{email}#result'
         response = requests.get(url,headers=headers)
         html_content = response.content
 
         soup = BeautifulSoup(html_content,'html.parser')
         email_information = soup.find(class_='response-data-col-1 response-email')
+        if email_information == None:
+            await message.answer('Извините ничего 🔎 не найдено ', reply_markup=start_mes)
+            await state.clear()
         text_email = email_information.text.strip()
 
 
@@ -475,6 +478,7 @@ async def tele_infa(message:Message,state:FSMContext):
        tg_chat = f'https://t.me/{phone_valid}'
 
 
+
        keyboard = InlineKeyboardMarkup(inline_keyboard=[
            [InlineKeyboardButton(text='Telegram',url=tg_chat),InlineKeyboardButton(text='Сайт',url=tg_id)],
            [InlineKeyboardButton(text='WhatsApp',url=f'https://wa.me/{phone_valid}')]
@@ -529,10 +533,38 @@ async def tele_infa(message:Message,state:FSMContext):
 
        text_osint = f'Поиск  ️🤖💻📱 прошел успешно:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: {osnov_infa}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
 
+
        if sure_name == 'Информация не найдена':
            text_osint = f'Поиск  ️🤖💻📱 прошел успешно:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Валид: {valid}\n└ Существует: {possible}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
 
        await bot_message.reply(text_osint,parse_mode='HTML',reply_markup=keyboard)
+
+       urlik = f'https://getscam.com/{phone_not}'
+       getter_html = requests.get(urlik, headers=headers)
+       html = getter_html.content
+
+       soup = BeautifulSoup(html, 'html.parser')
+
+       find_element = soup.find(class_='top__info-item')
+       ip_adr = 'Не найден'
+       ip_an = find_element
+       if ip_an == None:
+           ip_adresska = 'Не найдено'
+       else:
+
+           ip_an = find_element.text
+           ip_start = ip_an.find('IP адрес')
+           if ip_start != -1:
+               ip_start += len('IP адрес')
+               ip_end = ip_an.find('Сайт оператора', ip_start)
+               ip_adr = ip_an[ip_start:ip_end].strip()
+           else:
+               ip_adr = "Не найден"
+
+           ip_adresska = ip_adr
+           response = requests.get(url=f'http://ip-api.com/json/{ip_adresska}').json()
+           text_ip = f"Поиск  ️по Ip прошел успешно ✅\nвся информация взята с сервиса:\n\nIP: {ip_adresska}\n├ Провайдер: {response.get('isp')}\n├ Организация: {response.get('org')}\n├ Ofset: {response.get('offset')}\n├ Валюта: {response.get('BYR')}\n├ As: {response.get('as')}\n├ As_name: {response.get('asname')}\n├ Мобильный ip:{response.get('mobile')}\n├ Прокси: {response.get('proxy')}\n├ Hosting: {response.get('hosting')}\n├ DNS:{response.get('dns')}\n├ Континент: {response.get('continentCode')}\n├ Страна: {response.get('country')}\n├ Регион: {response.get('regionName')}\n├ Город: {response.get('city')}\n├ ZIP: {response.get('zip')}\n├ Широта: {response.get('lat')}\n└ Долгота: {response.get('lon')}"
+           await message.answer(text_ip,parse_mode='HTML')
 
     await asyncio.sleep(1)
     await message.answer('Поиск закончился все данные вверху.',reply_markup=start_mes)
