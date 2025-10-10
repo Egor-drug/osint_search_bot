@@ -96,6 +96,7 @@ def admin_main_menu():
         [InlineKeyboardButton(text='⚙️ Доп настройки',callback_data='settings')]
     ])
     return keyboard
+
 def back_menu():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='Back',callback_data='back')],
@@ -108,6 +109,7 @@ async def admin_panel(message:Message):
        await message.answer('У вас нет доступа к этой команде.')
        return
    await message.answer("Добро пожаловать в админ панель бота 🌍❤️❤️!",reply_markup=admin_main_menu())
+
 @router.callback_query(F.data == 'back')
 async def back_menu(callback:CallbackQuery):
     await callback.message.answer("",reply_markup=admin_main_menu())
@@ -153,7 +155,7 @@ async def broadcast_mess(message:Message,state:FSMContext,bot:Bot):
 
 @router.message(CommandStart())
 async def start(message:Message):
-    if await check_member(CHANEl_ID,message):
+    #if await check_member(CHANEl_ID,message):
 
        db = SessionLocal()
        exiting = db.query(User).filter(User.telegram_id == message.from_user.id).first()
@@ -164,8 +166,8 @@ async def start(message:Message):
        db.close()
 
        await message.answer_photo(photo='https://avatars.mds.yandex.net/i?id=026e7b7cf40d328b163e1db7cab9bed337c2b49e-5682063-images-thumbs&n=13',caption=f"Привет, детектив {message.from_user.first_name}! 🕵️‍♂️ Готов к расследованию? Отправляй мне любую зацепку: номер, никнейм, фото или ссылку. Я помогу найти то, что скрыто в цифровой тени. Вместе мы раскроем любое дело! 🔍✨ Включай логику и давай начинать. Жду твою первую задачу!",parse_mode='HTML',reply_markup=start_mes)
-    else:
-        await message.answer("🌍 Подпишитесь на канал",reply_markup=sub_check)
+    #else:
+        #await message.answer("🌍 Подпишитесь на канал",reply_markup=sub_check)
 
 
 @router.message(F.content_type == ContentType.USERS_SHARED)
@@ -230,7 +232,7 @@ async def stats(message:Message):
 
 @router.message(F.content_type == ContentType.CONTACT)
 async def contact_share(message:Message):
-    if await check_member(CHANEl_ID, message):
+    #if await check_member(CHANEl_ID, message):
        await message.answer('Идет поиск 🔎 информации...')
        await asyncio.sleep(1.5)
 
@@ -337,45 +339,49 @@ async def email_ok(message:Message,state:FSMContext):
 
         soup = BeautifulSoup(html_content,'html.parser')
         email_information = soup.find(class_='response-data-col-1 response-email')
+
         if email_information == None:
             await message.answer('Извините ничего 🔎 не найдено ', reply_markup=start_mes)
             await state.clear()
-        text_email = email_information.text.strip()
+
+        else:
+
+             text_email = email_information.text.strip()
 
 
-        tik_tok = f'https://tiktok.com/search?q={email}'
-        porn_hub= f'https://opornhub.org/user/search?username={username}'
-        facebook = f'https://facebook.com/search/top/?q={email}'
-        youtube = f'https://youtube.com/results?search_query={email}'
-        instagram = f'https://instagram.com/{username}'
-        tg = f'https://t.me/{username}'
-        vk = f'https://vk.com/search?c%5Bname%5D=1&c%5Bsection%5D=people&c%5Bq%5D={username}'
-        roblox = f'https://web.roblox.com/search/users?keyword={username}'
-        twiter = f'https://x.com/search?q={username}&f=user'
+             tik_tok = f'https://tiktok.com/search?q={email}'
+             porn_hub= f'https://opornhub.org/user/search?username={username}'
+             facebook = f'https://facebook.com/search/top/?q={email}'
+             youtube = f'https://youtube.com/results?search_query={email}'
+             instagram = f'https://instagram.com/{username}'
+             tg = f'https://t.me/{username}'
+             vk = f'https://vk.com/search?c%5Bname%5D=1&c%5Bsection%5D=people&c%5Bq%5D={username}'
+             roblox = f'https://web.roblox.com/search/users?keyword={username}'
+             twiter = f'https://x.com/search?q={username}&f=user'
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text='Youtube',url=youtube),InlineKeyboardButton(text='Facebook',url=facebook)],
-            [InlineKeyboardButton(text='TikTok',url=tik_tok),InlineKeyboardButton(text='Vk',url=vk)],
-            [InlineKeyboardButton(text='Telegram',url=tg),InlineKeyboardButton(text='Instagram',url=instagram)],
-            [InlineKeyboardButton(text='Roblox',url=roblox),InlineKeyboardButton(text='Twitter',url=twiter)],
-            [InlineKeyboardButton(text='Сайт',url=porn_hub)]
-        ])
+             keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                 [InlineKeyboardButton(text='Youtube',url=youtube),InlineKeyboardButton(text='Facebook',url=facebook)],
+                 [InlineKeyboardButton(text='TikTok',url=tik_tok),InlineKeyboardButton(text='Vk',url=vk)],
+                 [InlineKeyboardButton(text='Telegram',url=tg),InlineKeyboardButton(text='Instagram',url=instagram)],
+                 [InlineKeyboardButton(text='Roblox',url=roblox),InlineKeyboardButton(text='Twitter',url=twiter)],
+                 [InlineKeyboardButton(text='Сайт',url=porn_hub)]
+             ])
 
 
 
-        pattern = r'Почта(?P<email>[^И]+)Интересовались(?P<people>\d+)\sчеловекИмя(?P<name>[^С]*)Сведения[^Т]*Телефоны(?P<phone>[^M]+)Mail\.ru ID почты(?P<id>\w+)'
+             pattern = r'Почта(?P<email>[^И]+)Интересовались(?P<people>\d+)\sчеловекИмя(?P<name>[^С]*)Сведения[^Т]*Телефоны(?P<phone>[^M]+)Mail\.ru ID почты(?P<id>\w+)'
 
-        match = re.search(pattern, text_email)
-        if match:
-            data = match.groupdict()
+             match = re.search(pattern, text_email)
+             if match:
+                 data = match.groupdict()
 
-            email_sea = data.get('people', '')
-            email_name = data.get('name', '')
-            telephone = data.get('phone', '')
-            email_id =  data.get('id', '')
+                 email_sea = data.get('people', '')
+                 email_name = data.get('name', '')
+                 telephone = data.get('phone', '')
+                 email_id =  data.get('id', '')
 
-            await message.answer(f'<b>Email пробит:</b>\n\nОсновная информация:\n├ ✅ Email: {email}\n├ 👁 Сколько искали: {email_sea}\n\n├ Номер 📲: {telephone}\n├ ID : {email_id}\n├ 💬 Email_name : {email_name}\n\n├ <b>Tiktok</b>: {tik_tok}',parse_mode='HTML',reply_markup=keyboard)
-            await state.clear()
+                 await message.answer(f'<b>Email пробит:</b>\n\nОсновная информация:\n├ ✅ Email: {email}\n├ 👁 Сколько искали: {email_sea}\n\n├ Номер 📲: {telephone}\n├ ID : {email_id}\n├ 💬 Email_name : {email_name}\n\n├ <b>Tiktok</b>: {tik_tok}',parse_mode='HTML',reply_markup=keyboard)
+                 await state.clear()
     else:
         await message.answer('Этот email не поддерживается 📝 ',reply_markup=start_mes)
         await state.clear()
@@ -573,11 +579,11 @@ async def tele_infa(message:Message,state:FSMContext):
 
 @router.message(Command('send'))
 async def start_send(message:Message,state:FSMContext):
-    if await check_member(CHANEl_ID, message):
+    #if await check_member(CHANEl_ID, message):
        await state.set_state(Send.phone_account)
        await message.answer('Введите номер 📲 телефона подключеного аккаунта.')
-    else:
-        await message.answer("🌍 Подпишитесь на канал",reply_markup=sub_check)
+    #else:
+        #await message.answer("🌍 Подпишитесь на канал",reply_markup=sub_check)
 
 @router.message(Send.phone_account)
 async def phone_start_account(message:Message,state:FSMContext):
