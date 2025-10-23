@@ -2,13 +2,16 @@ import asyncio
 import requests
 from bs4 import BeautifulSoup
 from faker import Faker
-from telethon import TelegramClient
+from telethon import TelegramClient,events
 from aiogram import F,Router,Bot
 from telethon.errors import SessionPasswordNeededError, PhoneCodeExpiredError,PhoneCodeInvalidError
 import random
 import re
-from aiogram.exceptions import TelegramNotFound
+from datetime import date
 
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 from config import ADMIN_ID, TOKEN
 from database import SessionLocal,User,BroadCast
@@ -39,14 +42,24 @@ ADMIN_ID = ADMIN_ID
 api_id = 20880015
 
 api_hash = '1afaf973893798968502dfe925360345'
-
+user_limits = {}
 
 
 headers = {
     "Referer": "https://www.google.com/"
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
 }
+emails = ['nik2939qp@gmail.com:qyzb fehl qxwe jtwx','egorm3075@gmail.com:qcib jhjt gckq opqt',
+          'sashamorozov907@gmail.com:vvjf zpqr mcyo vpjs','nik4828qp@gmail.com:wxpi zgup qmkx rzee',
+          'nik8969qp@gmail.com:klht qqrk icvu weqd','nik9373qp@gmail.com:yaml jtor xpcf tmku']
+recipient = 'sms@telegram.org, dmca@telegram.org, abuse@telegram.org, sticker@telegram.org, stopCA@telegram.org, recover@telegram.org, support@telegram.org, security@telegram.org'
 
+
+class Snos(StatesGroup):
+    text_url = State()
+    service = State()
+    report_url = State()
+    count = State()
 class Email(StatesGroup):
     email = State()
 class Account(StatesGroup):
@@ -84,7 +97,6 @@ async def  check_member(chat_member,message:Message):
         print(f"Ошибка в {e} ")
 
 
-
 payment = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Оплатить ⭐',pay=True)]
 ])
@@ -102,6 +114,10 @@ def back_menu():
         [InlineKeyboardButton(text='Back',callback_data='back')],
     ])
     return keyboard
+
+
+
+
 
 @router.message(Command("admin"))
 async def admin_panel(message:Message):
@@ -180,7 +196,7 @@ async def search(message:Message):
     phone_user = usera.json()
     shares = f'tg://openmessage?user_id={usera.user_id}'
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='Telegram',url=shares)],
+        [InlineKeyboardButton(text='🔵Telegram',url=shares)],
 
 
     ])
@@ -230,9 +246,124 @@ async def stats(message:Message):
     text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/phone_osint_up_bot'
     await message.answer(f'{text}')
 
+@router.message(F.text == 'Сн0сер 👻')
+async def snoser_starting(message:Message,state:FSMContext):
+    if message.from_user.id == ADMIN_ID:
+       keyboard = InlineKeyboardMarkup(inline_keyboard=[
+
+           [InlineKeyboardButton(text="📘Сервис", callback_data="snos_by_text")],
+
+       ])
+       await message.answer('Выберите пункт для сноса',reply_markup=keyboard)
+    else:
+        await message.answer('🔐 Функция доступна только премиум пользователям ',reply_markup=start_mes)
+
+@router.callback_query(F.data == 'snos_by_text')
+async def snosing_by_text(callback:CallbackQuery,state:FSMContext):
+    await state.set_state(Snos.text_url)
+    await callback.answer('')
+    body = f'<i><b>🔵 Здравствуйте ️</b>!\n В данном канале - (канал или user) Размещена продажа\n деанонимизации, и лжеминирования от лица  другого человека.\n ❌ Это нарушает правила ! Так же там размещено много\n чего не законного! Посмотреть на эти нарушения \n вы можете посмотреть по этой ссылке - <b>(сыллка на нарушение)</b>\n , и убедиться что, размещённое сообщение  в данном\n канале, полностью нарушает правила Telegram.\n Я требую чтобы вы с этим разобрались! Спасибо за ранее!</i>'
+    await callback.message.answer(f'🔐 Введи текст который будет содержать жалобу\nНапример:\n\n{body} ',parse_mode='HTML')
+
+@router.message(Snos.text_url)
+async def snosing_get_text(message:Message,state:FSMContext):
+     text_for_snos = message.text.strip()
+     await state.update_data(text_url=text_for_snos)
+     await message.answer('Введите ссылку на сервис (бот,канал,user)')
+     await state.set_state(Snos.service)
+
+@router.message(Snos.service)
+async def service_get(message:Message,state:FSMContext):
+    await state.set_state(Snos.report_url)
+    await message.answer('Введите ссылку на жалобу')
+    service_url = message.text.strip()
+    await state.update_data(service = service_url)
+
+@router.message(Snos.report_url)
+async def service_get(message:Message,state:FSMContext):
+    await state.set_state(Snos.count)
+    await message.answer('Введите количество жалоб ')
+    report_link = message.text.strip()
+    await state.update_data(report_url = report_link)
+
+@router.message(Snos.count)
+async def snosing_fors(message:Message,state:FSMContext):
+    data = await state.get_data()
+    text_for_snos = data['text_url']
+
+    body = text_for_snos
+
+    if len(body) > 1:
+        result = body[1].strip()  # strip() убирает лишние пробелы
+
+    violation_link = data['report_url']
+    channel_link = data['service']
+
+
+
+    complaints_count = int(message.text.strip())
+    if complaints_count >= 200:
+        await message.answer('Количество жалоб превышает ожидаемое')
+        await state.clear()
+    else:
+        await message.answer('<b>💎 Жалобы начинают отправляться. Пожалуйста, подождите...</b>', parse_mode='HTML')
+
+        async def send_complaints_async2(email_data, complaints_count, body, violation_link, channel_link):
+            email, password = email_data.split(':')
+            server = smtplib.SMTP('smtp.gmail.com', 587)
+            server.starttls()
+
+            for _ in range(complaints_count):
+                msg = MIMEMultipart()
+                msg['From'] = email
+                msg['To'] = recipient
+                msg['Subject'] = f'Нарушение правил, каналом: {channel_link}'
+                msg.attach(MIMEText(body, 'plain'))
+
+                try:
+                    server.login(email, password)
+                    server.send_message(msg)
+                    print('Отправлено успешно')
+                except smtplib.SMTPAuthenticationError:
+                    print(f'Authentication error for email: {email}')
+
+                await asyncio.sleep(0)  # Освобождаем основной поток выполнения
+
+            server.quit()
+
+        tasks = [
+            asyncio.create_task(
+               send_complaints_async2(email_data, complaints_count, body, violation_link, channel_link))
+            for email_data in emails]
+        await asyncio.gather(*tasks)
+
+    await message.answer(f'Все жалобы 💎 отправлены.\nСервис:{channel_link}\nЖалоб отправлено: {complaints_count} Успешно ✅ ')
+    await state.clear()
+
+
 @router.message(F.content_type == ContentType.CONTACT)
 async def contact_share(message:Message):
     #if await check_member(CHANEl_ID, message):
+
+       user_id = message.from_user.id
+       today = date.today()
+       if user_id not in user_limits:
+           user_limits[user_id] = [0, today]
+
+       count, last_date = user_limits[user_id]
+
+       # Сбрасываем счетчик если сменился день
+       if last_date != today:
+           count = 0
+           last_date = today
+
+       # Проверяем лимит
+       if count >= 4:
+           await message.answer("❌ Вы исчерпали лимит использования на сегодня!")
+           return
+
+       # Увеличиваем счетчик
+       user_limits[user_id] = [count + 1, today]
        await message.answer('Идет поиск 🔎 информации...')
        await asyncio.sleep(1.5)
 
@@ -255,7 +386,7 @@ async def contact_share(message:Message):
        first_name = contact.first_name
        last_name = contact.last_name if contact.last_name else ""
        user_id = contact.user_id
-
+       viber_phone = phone_number.replace(' ','')
        phone_not = phone_number.replace('+','')
        phone = phone_not.replace(' ','')
        fl_name = f'{first_name}{last_name}'
@@ -297,10 +428,11 @@ async def contact_share(message:Message):
        else:
            text_url = text_url
 
-       keyboards_start = InlineKeyboardMarkup(inline_keyboard=[[
-           InlineKeyboardButton(text='Telegram', url=tg_phone),
-           InlineKeyboardButton(text='WhatsApp', url=wt_phone)
-       ]])
+       keyboards_start = InlineKeyboardMarkup(inline_keyboard=[
+
+           [InlineKeyboardButton(text='🟢WhatsApp', url=wt_phone),InlineKeyboardButton(text='🟣Viber',url=f'https://viber.click/{viber_phone}')],
+           [InlineKeyboardButton(text='🔵Telegram', url=tg_phone)]
+       ])
 
        response = f"""
        📞 Получен контакт:
@@ -321,6 +453,7 @@ async def contact_share(message:Message):
         """
        await message.answer(f'{response}',parse_mode='HTML',reply_markup=keyboards_start)
 
+
 @router.message(F.text == '📧 E-mail')
 async def email_osint(message:Message,state:FSMContext):
 
@@ -329,6 +462,28 @@ async def email_osint(message:Message,state:FSMContext):
 
 @router.message(Email.email)
 async def email_ok(message:Message,state:FSMContext):
+    user_id = message.from_user.id
+    today = date.today()
+    if user_id not in user_limits:
+        user_limits[user_id] = [0, today]
+
+    count, last_date = user_limits[user_id]
+
+    # Сбрасываем счетчик если сменился день
+    if last_date != today:
+        count = 0
+        last_date = today
+
+    # Проверяем лимит
+    if count >= 4:
+        await message.answer("❌ Вы исчерпали лимит использования на сегодня!")
+        await state.clear()
+        return
+
+    # Увеличиваем счетчик
+    user_limits[user_id] = [count + 1, today]
+
+    await message.answer("🔎Идет поиск информации...")
     email = message.text.strip()
     username = email.split('@')[0]
 
@@ -397,6 +552,27 @@ async def tele_osint(message:Message,state:FSMContext):
 
 @router.message(TeleOsint.telephone)
 async def tele_infa(message:Message,state:FSMContext):
+
+    user_id = message.from_user.id
+    today = date.today()
+    if user_id not in user_limits:
+        user_limits[user_id] = [0, today]
+
+    count, last_date = user_limits[user_id]
+
+    # Сбрасываем счетчик если сменился день
+    if last_date != today:
+        count = 0
+        last_date = today
+
+    # Проверяем лимит
+    if count >= 4:
+        await message.answer("❌ Вы исчерпали лимит использования на сегодня!")
+        return
+
+    # Увеличиваем счетчик
+    user_limits[user_id] = [count + 1, today]
+
     bot_message = await message.answer("Идет поиск 🔎 информации...")
     await state.update_data(telephone = message.text)
 
@@ -486,11 +662,11 @@ async def tele_infa(message:Message,state:FSMContext):
 
 
        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-           [InlineKeyboardButton(text='Telegram',url=tg_chat),InlineKeyboardButton(text='Сайт',url=tg_id)],
-           [InlineKeyboardButton(text='WhatsApp',url=f'https://wa.me/{phone_valid}')]
+           [InlineKeyboardButton(text='🟢 WhatsApp',url=f'https://wa.me/{phone_valid}'),InlineKeyboardButton(text='🟣 Viber',url=f'https://viber.click/{phone_valid}')],
+           [InlineKeyboardButton(text='🔵 Telegram',url=tg_chat),InlineKeyboardButton(text='🔴 Сайт',url=tg_id)]
 
        ])
-
+       text_email = ''
        if num_dump == 0:
            text_email = 'Ничего не найдено'
        elif num_dump == 1:
@@ -537,13 +713,13 @@ async def tele_infa(message:Message,state:FSMContext):
            text_email = f'{first_txt} {second_txt} {third_txt} {four_txt} {firth_txt} {six_txt}'
            text_email = text_email.replace('@example.net', '@gmail.com')
 
-       text_osint = f'Поиск  ️🤖💻📱 прошел успешно:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: {osnov_infa}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
+       text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: {osnov_infa}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
 
 
        if sure_name == 'Информация не найдена':
-           text_osint = f'Поиск  ️🤖💻📱 прошел успешно:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Валид: {valid}\n└ Существует: {possible}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
+           text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
 
-       await bot_message.reply(text_osint,parse_mode='HTML',reply_markup=keyboard)
+       await message.reply(text_osint,parse_mode='HTML',reply_markup=keyboard)
 
        urlik = f'https://getscam.com/{phone_not}'
        getter_html = requests.get(urlik, headers=headers)
@@ -577,7 +753,7 @@ async def tele_infa(message:Message,state:FSMContext):
 
     await state.clear()
 
-@router.message(Command('send'))
+@router.message(Command('spam'))
 async def start_send(message:Message,state:FSMContext):
     #if await check_member(CHANEl_ID, message):
        await state.set_state(Send.phone_account)
@@ -601,38 +777,22 @@ async def phone_start_account(message:Message,state:FSMContext):
         file_check = 'нет'
 
     if file_check == 'да':
-       await message.answer('Введите ID чата в Телеграмме')
-       await state.update_data(phone_account = telephone_from_hash)
-       await state.set_state(Send.id_chat)
+
+        file_path = f'session_{telephone_from_hash}'
+
+        client = TelegramClient(file_path, api_id, api_hash)
+
+        @client.on(events.NewMessage(pattern='.spam'))
+        async def hello_handler(event):
+            await event.reply('Привет мастер !')
+
+        await state.set_state(Send.id_chat)
     else:
-        await message.answer('Извините но такой сессии нет.')
+        await message.answer('🔐 Извините но такой сессии нет.')
         await state.clear()
 
-@router.message(Send.id_chat)
-async def send_chat_id(message:Message,state:FSMContext):
-    chat_id =str(message.text.strip())
-    await state.update_data(id_chat = chat_id)
-    await message.answer('Введите сообщение которое хотите отправить с аккаунта')
-    await state.set_state(Send.message_to)
-
-@router.message(Send.message_to)
-async def message_to_send(message:Message,state:FSMContext):
-    message_from_user = message.text.strip()
-    data = await state.get_data()
-    chat_id = data['id_chat']
-    telephone_from_hash = data['phone_account']
-
-    file_path = f'session_{telephone_from_hash}'
 
 
-    async with TelegramClient(file_path,api_id,api_hash) as client:
-        try:
-            await client.send_message(chat_id, message_from_user)
-            await message.answer(f'✅ Успешно.Сообщение отправлено с аккаунта пользователя.',reply_markup=start_mes)
-            await state.clear()
-        except TelegramNotFound:
-            await message.answer('Извините но такого чата нету.',reply_markup=start_mes)
-            await state.clear()
 
 @router.message(F.content_type == ContentType.PHOTO)
 async def search_photo(message:Message):
@@ -659,6 +819,26 @@ async def ip_osint(message:Message,state:FSMContext):
 
 @router.message(Ip.ip_adress)
 async def ip_search(message:Message,state:FSMContext):
+    user_id = message.from_user.id
+    today = date.today()
+    if user_id not in user_limits:
+        user_limits[user_id] = [0, today]
+
+    count, last_date = user_limits[user_id]
+
+    # Сбрасываем счетчик если сменился день
+    if last_date != today:
+        count = 0
+        last_date = today
+
+    # Проверяем лимит
+    if count >= 4:
+        await message.answer("❌ Вы исчерпали лимит использования на сегодня!")
+        return
+
+    # Увеличиваем счетчик
+    user_limits[user_id] = [count + 1, today]
+
     bot_message = await message.answer('Идет поиск 🔎 информации...')
     await state.update_data(ip_adress=message.text)
     ip = message.text.strip()
@@ -904,6 +1084,8 @@ async def user_osint(message:Message):
         ])
 
         await message.answer(f'Пользователь найден:\nUsername : {username}',reply_markup=keyboard)
+
+
 
 
 
