@@ -285,60 +285,107 @@ async def service_get(message:Message,state:FSMContext):
     report_link = message.text.strip()
     await state.update_data(report_url = report_link)
 
+
 @router.message(Snos.count)
-async def snosing_fors(message:Message,state:FSMContext):
-    data = await state.get_data()
-    text_for_snos = data['text_url']
+async def snosing_fors(message: Message, state: FSMContext):
+    try:
+        data = await state.get_data()
+        text_for_snos = data['text_url']
 
-    body = text_for_snos
+        # Исправляем обработку body
+        if isinstance(text_for_snos, (list, tuple)) and len(text_for_snos) > 1:
+            body = text_for_snos[1].strip()
+        else:
+            body = str(text_for_snos).strip()
 
-    if len(body) > 1:
-        result = body[1].strip()  # strip() убирает лишние пробелы
+        violation_link = data['report_url']
+        channel_link = data['service']
 
-    violation_link = data['report_url']
-    channel_link = data['service']
+        # Безопасное преобразование числа
+        try:
+            complaints_count = int(message.text.strip())
+        except ValueError:
+            await message.answer('❌ Пожалуйста, введите корректное число')
+            return
 
+        if complaints_count >= 200:
+            await message.answer('❌ Количество жалоб превышает ожидаемое')
+            await state.clear()
+            return
 
-
-    complaints_count = int(message.text.strip())
-    if complaints_count >= 200:
-        await message.answer('Количество жалоб превышает ожидаемое')
-        await state.clear()
-    else:
         await message.answer('<b>💎 Жалобы начинают отправляться. Пожалуйста, подождите...</b>', parse_mode='HTML')
 
-        async def send_complaints_async2(email_data):
-            email, password = email_data.split(':')
-            server = smtplib.SMTP('smtp.gmail.com', 587)
-            server.starttls()
+        async def send_complaints_async2(email_data_item):
+            try:
+                email, password = email_data_item.split(':', 1)  # Исправляем split
 
-            for _ in range(complaints_count):
-                msg = MIMEMultipart()
-                msg['From'] = email
-                msg['To'] = recipient
-                msg['Subject'] = f'Нарушение правил, каналом: {channel_link}'
-                msg.attach(MIMEText(body, 'plain'))
+                # Создаем SMTP соединение внутри функции
+                server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
+                server.starttls()
 
+                # Логинимся один раз
                 try:
                     server.login(email, password)
-                    server.send_message(msg)
-                    await message.answer('✅ Успешно ')
-                except Exception as e:
-                    print(f'Authentication error for email: {e}')
-                    await message.answer(f'Неуспешно в {e}')
+                except smtplib.SMTPAuthenticationError as e:
+                    print(f'❌ Ошибка аутентификации для {email}: {e}')
+                    await message.answer(f'❌ Ошибка входа для {email}')
+                    server.quit()
+                    return
 
-                await asyncio.sleep(0.1)  # Освобождаем основной поток выполнения
+                successful_sends = 0
 
-            server.quit()
+                # Отправляем несколько жалоб с одного email
+                for i in range(complaints_count // len(emails) + 1):
+                    if successful_sends >= complaints_count:
+                        break
 
-        tasks = [
-            asyncio.create_task(
-               await send_complaints_async2(email_data))
-            for email_data in emails]
-        await asyncio.gather(*tasks)
+                    msg = MIMEMultipart()
+                    msg['From'] = email
+                    msg['To'] = recipient
+                    msg['Subject'] = f'Нарушение правил, каналом: {channel_link}'
+                    msg.attach(MIMEText(body, 'plain', 'utf-8'))  # Добавляем кодировку
 
-    await message.answer(f'Все жалобы 💎 отправлены.\nСервис:{channel_link}\nЖалоб отправлено: {complaints_count} Успешно ✅ ')
-    await state.clear()
+                    try:
+                        server.send_message(msg)
+                        successful_sends += 1
+                        print(f'✅ Отправлено {successful_sends} с {email}')
+                    except Exception as ea:
+                        print(f'❌ Ошибка отправки с {email}: {ea}')
+                        break
+
+                    await asyncio.sleep(0.1)  # Задержка между отправками
+
+                server.quit()
+                return successful_sends
+
+            except Exception as es:
+                print(f'❌ Критическая ошибка для {email_data}: {es}')
+                return 0
+
+        # Исправляем создание задач - убираем await
+        tasks = []
+        for email_data in emails:
+            task = asyncio.create_task(send_complaints_async2(email_data))
+            tasks.append(task)
+
+        # Ждем завершения всех задач
+        results = await asyncio.gather(*tasks)
+        total_successful = sum(results)
+
+        await message.answer(
+            f'<b>📊 Отчет по отправке жалоб:</b>\n\n'
+            f'• Сервис: {channel_link}\n\n'
+            f'• Запланировано: {complaints_count} жалоб\n\n'
+            f'• Успешно отправлено: {total_successful} ✅\n\n'
+            f'• Успешность: {(total_successful / complaints_count * 100) if complaints_count > 0 else 0:.1f}%',
+            parse_mode='HTML'
+        )
+
+    except Exception as e:
+        await message.answer(f'❌ Произошла критическая ошибка: {str(e)}')
+        print(f"Critical error: {e}")
+    finally:
+        await state.clear()
 
 
 @router.message(F.content_type == ContentType.CONTACT)
