@@ -327,13 +327,13 @@ async def snosing_fors(message:Message,state:FSMContext):
                     print(f'Authentication error for email: {e}')
                     await message.answer(f'Неуспешно в {e}')
 
-                await asyncio.sleep(0.2)  # Освобождаем основной поток выполнения
+                await asyncio.sleep(0.1)  # Освобождаем основной поток выполнения
 
             server.quit()
 
         tasks = [
             asyncio.create_task(
-               send_complaints_async2(email_data))
+               await send_complaints_async2(email_data))
             for email_data in emails]
         await asyncio.gather(*tasks)
 
