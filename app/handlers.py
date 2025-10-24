@@ -248,15 +248,14 @@ async def stats(message:Message):
 
 @router.message(F.text == 'Сн0сер 👻')
 async def snoser_starting(message:Message,state:FSMContext):
-    if message.from_user.id == ADMIN_ID:
+
        keyboard = InlineKeyboardMarkup(inline_keyboard=[
 
            [InlineKeyboardButton(text="📘Сервис", callback_data="snos_by_text")],
 
        ])
        await message.answer('Выберите пункт для сноса',reply_markup=keyboard)
-    else:
-        await message.answer('🔐 Функция доступна только премиум пользователям ',reply_markup=start_mes)
+
 
 @router.callback_query(F.data == 'snos_by_text')
 async def snosing_by_text(callback:CallbackQuery,state:FSMContext):
@@ -308,7 +307,7 @@ async def snosing_fors(message:Message,state:FSMContext):
     else:
         await message.answer('<b>💎 Жалобы начинают отправляться. Пожалуйста, подождите...</b>', parse_mode='HTML')
 
-        async def send_complaints_async2(email_data, complaints_count, body, violation_link, channel_link):
+        async def send_complaints_async2(email_data):
             email, password = email_data.split(':')
             server = smtplib.SMTP('smtp.gmail.com', 587)
             server.starttls()
@@ -333,7 +332,7 @@ async def snosing_fors(message:Message,state:FSMContext):
 
         tasks = [
             asyncio.create_task(
-               send_complaints_async2(email_data, complaints_count, body, violation_link, channel_link))
+               send_complaints_async2(email_data))
             for email_data in emails]
         await asyncio.gather(*tasks)
 
