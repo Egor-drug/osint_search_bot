@@ -9,7 +9,7 @@ import random
 import re
 from datetime import date
 
-import smtplib
+import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -292,16 +292,13 @@ async def snosing_fors(message: Message, state: FSMContext):
         data = await state.get_data()
         text_for_snos = data['text_url']
 
-        # Исправляем обработку body
         if isinstance(text_for_snos, (list, tuple)) and len(text_for_snos) > 1:
             body = text_for_snos[1].strip()
         else:
             body = str(text_for_snos).strip()
 
-        violation_link = data['report_url']
         channel_link = data['service']
 
-        # Безопасное преобразование числа
         try:
             complaints_count = int(message.text.strip())
         except ValueError:
@@ -315,27 +312,35 @@ async def snosing_fors(message: Message, state: FSMContext):
 
         await message.answer('<b>💎 Жалобы начинают отправляться. Пожалуйста, подождите...</b>', parse_mode='HTML')
 
-        async def send_complaints_async2(email_data_item):
+        async def send_email_batch(email_cred_net):
+            """Отправляет партию жалоб с одного email используя aiosmtplib"""
             try:
-                email, password = email_data_item.split(':', 1)  # Исправляем split
+                email, password = email_cred_net.split(':', 1)
 
-                # Создаем SMTP соединение внутри функции
-                server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
-                server.starttls()
+                # Используем aiosmtplib для асинхронной работы
+                smtp = aiosmtplib.SMTP(
+                    hostname='smtp.gmail.com',
+                    port=587,
+                    timeout=30
+                )
 
-                # Логинимся один раз
+                await smtp.connect()
+                await smtp.starttls()
+
                 try:
-                    server.login(email, password)
-                except smtplib.SMTPAuthenticationError as e:
-                    print(f'❌ Ошибка аутентификации для {email}: {e}')
-                    await message.answer(f'❌ Ошибка входа для {email}')
-                    server.quit()
-                    return
+                    await smtp.login(email, password)
+                    print(f'✅ Успешный вход для {email}')
+                except Exception as auth_error:
+                    print(f'❌ Ошибка аутентификации для {email}: {auth_error}')
+                    await smtp.quit()
+                    return 0
 
                 successful_sends = 0
+                # Распределяем жалобы между доступными email
+                emails_count = len(emails)
+                batch_size = (complaints_count + emails_count - 1) // emails_count  # Округление вверх
 
-                # Отправляем несколько жалоб с одного email
-                for i in range(complaints_count // len(emails) + 1):
+                for i in range(batch_size):
                     if successful_sends >= complaints_count:
                         break
 
@@ -343,41 +348,46 @@ async def snosing_fors(message: Message, state: FSMContext):
                     msg['From'] = email
                     msg['To'] = recipient
                     msg['Subject'] = f'Нарушение правил, каналом: {channel_link}'
-                    msg.attach(MIMEText(body, 'plain', 'utf-8'))  # Добавляем кодировку
+                    msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
                     try:
-                        server.send_message(msg)
+                        await smtp.send_message(msg)
                         successful_sends += 1
                         print(f'✅ Отправлено {successful_sends} с {email}')
-                    except Exception as ea:
-                        print(f'❌ Ошибка отправки с {email}: {ea}')
+                    except Exception as e:
+                        print(f'❌ Ошибка отправки с {email}: {e}')
                         break
 
-                    await asyncio.sleep(0.1)  # Задержка между отправками
+                    await asyncio.sleep(0.5)  # Увеличиваем задержку между отправками
 
-                server.quit()
+                await smtp.quit()
+                print(f'📧 {email} отправил {successful_sends} жалоб')
                 return successful_sends
 
-            except Exception as es:
-                print(f'❌ Критическая ошибка для {email_data}: {es}')
+            except Exception as e:
+                print(f'❌ Критическая ошибка для {email_cred}: {e}')
                 return 0
 
-        # Исправляем создание задач - убираем await
+        # Создаем задачи для отправки
         tasks = []
-        for email_data in emails:
-            task = asyncio.create_task(send_complaints_async2(email_data))
+        for email_cred in emails:
+            task = asyncio.create_task(send_email_batch(email_cred))
             tasks.append(task)
 
         # Ждем завершения всех задач
         results = await asyncio.gather(*tasks)
         total_successful = sum(results)
 
+        # Формируем отчет
+        success_rate = (total_successful / complaints_count * 100) if complaints_count > 0 else 0
+
         await message.answer(
             f'<b>📊 Отчет по отправке жалоб:</b>\n\n'
             f'• Сервис: {channel_link}\n\n'
             f'• Запланировано: {complaints_count} жалоб\n\n'
             f'• Успешно отправлено: {total_successful} ✅\n\n'
-            f'• Успешность: {(total_successful / complaints_count * 100) if complaints_count > 0 else 0:.1f}%',
+            f'• Успешность: {success_rate:.1f}%\n\n'
+            f'• Использовано email: {len(emails)}',
             parse_mode='HTML'
         )
 
