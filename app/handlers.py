@@ -322,11 +322,12 @@ async def snosing_fors(message:Message,state:FSMContext):
                 try:
                     server.login(email, password)
                     server.send_message(msg)
-                    print('Отправлено успешно')
-                except smtplib.SMTPAuthenticationError:
-                    print(f'Authentication error for email: {email}')
+                    await message.answer('✅ Успешно ')
+                except Exception as e:
+                    print(f'Authentication error for email: {e}')
+                    await message.answer(f'Неуспешно в {e}')
 
-                await asyncio.sleep(0)  # Освобождаем основной поток выполнения
+                await asyncio.sleep(0.2)  # Освобождаем основной поток выполнения
 
             server.quit()
 
