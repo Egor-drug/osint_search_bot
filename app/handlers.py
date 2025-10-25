@@ -8,7 +8,7 @@ from telethon.errors import SessionPasswordNeededError, PhoneCodeExpiredError,Ph
 import random
 import re
 from datetime import date
-
+import os
 import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -19,7 +19,7 @@ from database import SessionLocal,User,BroadCast
 from aiogram.enums import ChatMemberStatus
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.enums import ContentType
-from aiogram.types import CallbackQuery,Message,PreCheckoutQuery,LabeledPrice
+from aiogram.types import CallbackQuery,Message,PreCheckoutQuery,LabeledPrice,FSInputFile
 from aiogram.filters import CommandStart,Command
 from aiogram.fsm.state import State,StatesGroup
 from aiogram.fsm.context import FSMContext
@@ -288,6 +288,9 @@ async def service_get(message:Message,state:FSMContext):
 
 @router.message(Snos.count)
 async def snosing_fors(message: Message, state: FSMContext):
+    keyboarders = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='⬇️ Скачать', callback_data='download')]
+    ])
     try:
         data = await state.get_data()
         text_for_snos = data['text_url']
@@ -388,7 +391,8 @@ async def snosing_fors(message: Message, state: FSMContext):
             f'• Успешно отправлено: {total_successful} ✅\n\n'
             f'• Успешность: {success_rate:.1f}%\n\n'
             f'• Использовано email: {len(emails)}',
-            parse_mode='HTML'
+            parse_mode='HTML',
+            reply_markup=keyboarders
         )
 
     except Exception as e:
@@ -397,6 +401,22 @@ async def snosing_fors(message: Message, state: FSMContext):
     finally:
         await state.clear()
 
+
+@router.callback_query(F.data == 'download')
+async def download(callback: CallbackQuery):
+    file_path = 'snoser.zip'
+
+    # Проверяем существование файла
+    if not os.path.exists(file_path):
+        await callback.answer('snoser.zip', show_alert=True)
+
+    try:
+        file_watch = FSInputFile(file_path)
+        await callback.answer('')
+
+        await callback.message.answer_document(document=file_watch,caption='Привет вот твой ✅ готовый Zip архив')
+    except Exception as e:
+        await callback.answer(f'Ошибка отправки: {str(e)}', show_alert=True)
 
 @router.message(F.content_type == ContentType.CONTACT)
 async def contact_share(message:Message):
@@ -1125,6 +1145,7 @@ async def password_sign_in(message:Message,state:FSMContext):
     await client.sign_in(password=passworder,phone_code_hash=hashing)
 
     await state.clear()
+
 
 
 @router.message(F.text.startswith('@'))
