@@ -42,7 +42,7 @@ ADMIN_ID = ADMIN_ID
 api_id = 20880015
 
 api_hash = '1afaf973893798968502dfe925360345'
-user_limits = {}
+
 
 
 headers = {
@@ -1082,6 +1082,7 @@ async def user_osint(message:Message):
         ])
 
         await message.answer(f'Пользователь найден:\nUsername : {username}',reply_markup=keyboard)
+
 
 
 
