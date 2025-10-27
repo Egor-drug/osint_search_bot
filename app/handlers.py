@@ -421,26 +421,7 @@ async def download(callback: CallbackQuery):
 @router.message(F.content_type == ContentType.CONTACT)
 async def contact_share(message:Message):
     #if await check_member(CHANEl_ID, message):
-
-       user_id = message.from_user.id
-       today = date.today()
-       if user_id not in user_limits:
-           user_limits[user_id] = [0, today]
-
-       count, last_date = user_limits[user_id]
-
-       # Сбрасываем счетчик если сменился день
-       if last_date != today:
-           count = 0
-           last_date = today
-
-       # Проверяем лимит
-       if count >= 4:
-           await message.answer("❌ Вы исчерпали лимит использования на сегодня!")
-           return
-
-       # Увеличиваем счетчик
-       user_limits[user_id] = [count + 1, today]
+  
        await message.answer('Идет поиск 🔎 информации...')
        await asyncio.sleep(1.5)
 
@@ -539,27 +520,6 @@ async def email_osint(message:Message,state:FSMContext):
 
 @router.message(Email.email)
 async def email_ok(message:Message,state:FSMContext):
-    user_id = message.from_user.id
-    today = date.today()
-    if user_id not in user_limits:
-        user_limits[user_id] = [0, today]
-
-    count, last_date = user_limits[user_id]
-
-    # Сбрасываем счетчик если сменился день
-    if last_date != today:
-        count = 0
-        last_date = today
-
-    # Проверяем лимит
-    if count >= 4:
-        await message.answer("❌ Вы исчерпали лимит использования на сегодня!")
-        await state.clear()
-        return
-
-    # Увеличиваем счетчик
-    user_limits[user_id] = [count + 1, today]
-
     await message.answer("🔎Идет поиск информации...")
     email = message.text.strip()
     username = email.split('@')[0]
@@ -629,27 +589,6 @@ async def tele_osint(message:Message,state:FSMContext):
 
 @router.message(TeleOsint.telephone)
 async def tele_infa(message:Message,state:FSMContext):
-
-    user_id = message.from_user.id
-    today = date.today()
-    if user_id not in user_limits:
-        user_limits[user_id] = [0, today]
-
-    count, last_date = user_limits[user_id]
-
-    # Сбрасываем счетчик если сменился день
-    if last_date != today:
-        count = 0
-        last_date = today
-
-    # Проверяем лимит
-    if count >= 4:
-        await message.answer("❌ Вы исчерпали лимит использования на сегодня!")
-        return
-
-    # Увеличиваем счетчик
-    user_limits[user_id] = [count + 1, today]
-
     bot_message = await message.answer("Идет поиск 🔎 информации...")
     await state.update_data(telephone = message.text)
 
@@ -896,26 +835,7 @@ async def ip_osint(message:Message,state:FSMContext):
 
 @router.message(Ip.ip_adress)
 async def ip_search(message:Message,state:FSMContext):
-    user_id = message.from_user.id
-    today = date.today()
-    if user_id not in user_limits:
-        user_limits[user_id] = [0, today]
-
-    count, last_date = user_limits[user_id]
-
-    # Сбрасываем счетчик если сменился день
-    if last_date != today:
-        count = 0
-        last_date = today
-
-    # Проверяем лимит
-    if count >= 4:
-        await message.answer("❌ Вы исчерпали лимит использования на сегодня!")
-        return
-
-    # Увеличиваем счетчик
-    user_limits[user_id] = [count + 1, today]
-
+ 
     bot_message = await message.answer('Идет поиск 🔎 информации...')
     await state.update_data(ip_adress=message.text)
     ip = message.text.strip()
@@ -1162,6 +1082,7 @@ async def user_osint(message:Message):
         ])
 
         await message.answer(f'Пользователь найден:\nUsername : {username}',reply_markup=keyboard)
+
 
 
 
