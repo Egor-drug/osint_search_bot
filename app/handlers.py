@@ -252,156 +252,14 @@ async def snoser_starting(message:Message,state:FSMContext):
        keyboard = InlineKeyboardMarkup(inline_keyboard=[
 
            [InlineKeyboardButton(text="📘Сервис", callback_data="snos_by_text")],
+           [InlineKeyboardButton(text='⬇️ Скачать', callback_data='download')]
 
        ])
        await message.answer('Выберите пункт для сноса',reply_markup=keyboard)
-
-
 @router.callback_query(F.data == 'snos_by_text')
-async def snosing_by_text(callback:CallbackQuery,state:FSMContext):
-    await state.set_state(Snos.text_url)
+async def snosers(callback:CallbackQuery):
     await callback.answer('')
-    body = f'<i><b>🔵 Здравствуйте ️</b>!\n В данном канале - (канал или user) Размещена продажа\n деанонимизации, и лжеминирования от лица  другого человека.\n ❌ Это нарушает правила ! Так же там размещено много\n чего не законного! Посмотреть на эти нарушения \n вы можете посмотреть по этой ссылке - <b>(сыллка на нарушение)</b>\n , и убедиться что, размещённое сообщение  в данном\n канале, полностью нарушает правила Telegram.\n Я требую чтобы вы с этим разобрались! Спасибо за ранее!</i>'
-    await callback.message.answer(f'🔐 Введи текст который будет содержать жалобу\nНапример:\n\n{body} ',parse_mode='HTML')
-
-@router.message(Snos.text_url)
-async def snosing_get_text(message:Message,state:FSMContext):
-     text_for_snos = message.text.strip()
-     await state.update_data(text_url=text_for_snos)
-     await message.answer('Введите ссылку на сервис (бот,канал,user)')
-     await state.set_state(Snos.service)
-
-@router.message(Snos.service)
-async def service_get(message:Message,state:FSMContext):
-    await state.set_state(Snos.report_url)
-    await message.answer('Введите ссылку на жалобу')
-    service_url = message.text.strip()
-    await state.update_data(service = service_url)
-
-@router.message(Snos.report_url)
-async def service_get(message:Message,state:FSMContext):
-    await state.set_state(Snos.count)
-    await message.answer('Введите количество жалоб ')
-    report_link = message.text.strip()
-    await state.update_data(report_url = report_link)
-
-
-@router.message(Snos.count)
-async def snosing_fors(message: Message, state: FSMContext):
-    keyboarders = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='⬇️ Скачать', callback_data='download')]
-    ])
-    try:
-        data = await state.get_data()
-        text_for_snos = data['text_url']
-
-        if isinstance(text_for_snos, (list, tuple)) and len(text_for_snos) > 1:
-            body = text_for_snos[1].strip()
-        else:
-            body = str(text_for_snos).strip()
-
-        channel_link = data['service']
-
-        try:
-            complaints_count = int(message.text.strip())
-        except ValueError:
-            await message.answer('❌ Пожалуйста, введите корректное число')
-            return
-
-        if complaints_count >= 200:
-            await message.answer('❌ Количество жалоб превышает ожидаемое')
-            await state.clear()
-            return
-
-        await message.answer('<b>💎 Жалобы начинают отправляться. Пожалуйста, подождите...</b>', parse_mode='HTML')
-
-        async def send_email_batch(email_cred_net):
-            """Отправляет партию жалоб с одного email используя aiosmtplib"""
-            try:
-                email, password = email_cred_net.split(':', 1)
-
-                # Используем aiosmtplib для асинхронной работы
-                smtp = aiosmtplib.SMTP(
-                    hostname='smtp.gmail.com',
-                    port=587,
-                    timeout=30
-                )
-
-                await smtp.connect()
-                await smtp.starttls()
-
-                try:
-                    await smtp.login(email, password)
-                    print(f'✅ Успешный вход для {email}')
-                except Exception as auth_error:
-                    print(f'❌ Ошибка аутентификации для {email}: {auth_error}')
-                    await smtp.quit()
-                    return 0
-
-                successful_sends = 0
-                # Распределяем жалобы между доступными email
-                emails_count = len(emails)
-                batch_size = (complaints_count + emails_count - 1) // emails_count  # Округление вверх
-
-                for i in range(batch_size):
-                    if successful_sends >= complaints_count:
-                        break
-
-                    msg = MIMEMultipart()
-                    msg['From'] = email
-                    msg['To'] = recipient
-                    msg['Subject'] = f'Нарушение правил, каналом: {channel_link}'
-                    msg.attach(MIMEText(body, 'plain', 'utf-8'))
-
-                    try:
-                        await smtp.send_message(msg)
-                        successful_sends += 1
-                        print(f'✅ Отправлено {successful_sends} с {email}')
-                    except Exception as e:
-                        print(f'❌ Ошибка отправки с {email}: {e}')
-                        break
-
-                    await asyncio.sleep(0.5)  # Увеличиваем задержку между отправками
-
-                await smtp.quit()
-                print(f'📧 {email} отправил {successful_sends} жалоб')
-                return successful_sends
-
-            except Exception as e:
-                print(f'❌ Критическая ошибка для {email_cred}: {e}')
-                return 0
-
-        # Создаем задачи для отправки
-        tasks = []
-        for email_cred in emails:
-            task = asyncio.create_task(send_email_batch(email_cred))
-            tasks.append(task)
-
-        # Ждем завершения всех задач
-        results = await asyncio.gather(*tasks)
-        total_successful = sum(results)
-
-        # Формируем отчет
-        success_rate = (total_successful / complaints_count * 100) if complaints_count > 0 else 0
-
-        await message.answer(
-            f'<b>📊 Отчет по отправке жалоб:</b>\n\n'
-            f'• Сервис: {channel_link}\n\n'
-            f'• Запланировано: {complaints_count} жалоб\n\n'
-            f'• Успешно отправлено: {total_successful} ✅\n\n'
-            f'• Успешность: {success_rate:.1f}%\n\n'
-            f'• Использовано email: {len(emails)}',
-            parse_mode='HTML',
-            reply_markup=keyboarders
-        )
-
-    except Exception as e:
-        await message.answer(f'❌ Произошла критическая ошибка: {str(e)}')
-        print(f"Critical error: {e}")
-    finally:
-        await state.clear()
-
-
+    await callback.message.answer('❌ Извините данная функция не доступна сейчас',reply_markup=start_mes)
 @router.callback_query(F.data == 'download')
 async def download(callback: CallbackQuery):
     file_path = 'snoser.zip'
@@ -414,14 +272,15 @@ async def download(callback: CallbackQuery):
         file_watch = FSInputFile(file_path)
         await callback.answer('')
 
-        await callback.message.answer_document(document=file_watch,caption='Привет вот твой ✅ готовый Zip архив')
+        await callback.message.answer_document(document=file_watch,caption='Привет вот твой готовый Zip архив\nЧитайте инструкцию readme')
     except Exception as e:
         await callback.answer(f'Ошибка отправки: {str(e)}', show_alert=True)
 
 @router.message(F.content_type == ContentType.CONTACT)
 async def contact_share(message:Message):
     #if await check_member(CHANEl_ID, message):
-  
+
+
        await message.answer('Идет поиск 🔎 информации...')
        await asyncio.sleep(1.5)
 
@@ -520,6 +379,8 @@ async def email_osint(message:Message,state:FSMContext):
 
 @router.message(Email.email)
 async def email_ok(message:Message,state:FSMContext):
+
+
     await message.answer("🔎Идет поиск информации...")
     email = message.text.strip()
     username = email.split('@')[0]
@@ -589,6 +450,7 @@ async def tele_osint(message:Message,state:FSMContext):
 
 @router.message(TeleOsint.telephone)
 async def tele_infa(message:Message,state:FSMContext):
+
     bot_message = await message.answer("Идет поиск 🔎 информации...")
     await state.update_data(telephone = message.text)
 
@@ -778,33 +640,39 @@ async def start_send(message:Message,state:FSMContext):
         #await message.answer("🌍 Подпишитесь на канал",reply_markup=sub_check)
 
 @router.message(Send.phone_account)
-async def phone_start_account(message:Message,state:FSMContext):
+async def phone_start_account(message: Message, state: FSMContext):
     telephone = message.text.strip()
-    telephone_hash = telephone.replace(' ','')
-    telephone_from_hash = telephone_hash.replace('+','')
+    telephone_from_hash = telephone.replace(' ', '').replace('+', '')
 
     file_path = f'session_{telephone_from_hash}'
-    file_check = ''
+
+
+    if not os.path.exists(file_path):
+        await message.answer('🔐 Извините, но такой сессии нет.')
+        await state.clear()
+        return
+
     try:
-        with open(file_path, 'r'):
-            file_check = 'да'
-
-    except FileNotFoundError:
-        file_check = 'нет'
-
-    if file_check == 'да':
-
-        file_path = f'session_{telephone_from_hash}'
-
+        # Инициализируем клиент
         client = TelegramClient(file_path, api_id, api_hash)
 
-        @client.on(events.NewMessage(pattern='.spam'))
-        async def hello_handler(event):
-            await event.reply('Привет мастер !')
+        # Проверяем авторизацию
+        await client.connect()
+        if not await client.is_user_authorized():
+            await message.answer('❌ Сессия существует, но не авторизована.')
+            await client.disconnect()
+            await state.clear()
 
-        await state.set_state(Send.id_chat)
-    else:
-        await message.answer('🔐 Извините но такой сессии нет.')
+
+        # Регистрируем обработчики (если нужно)
+        @client.on(events.NewMessage(pattern='.spam'))
+        async def spam_handler(event):
+            await event.reply('Привет мастер!')
+
+        await message.answer('Сессия включена ✅ спасибо за работу !')
+        await state.clear()
+    except Exception as e:
+        await message.answer(f'❌ Ошибка при работе с сессией: {str(e)}')
         await state.clear()
 
 
@@ -835,7 +703,7 @@ async def ip_osint(message:Message,state:FSMContext):
 
 @router.message(Ip.ip_adress)
 async def ip_search(message:Message,state:FSMContext):
- 
+
     bot_message = await message.answer('Идет поиск 🔎 информации...')
     await state.update_data(ip_adress=message.text)
     ip = message.text.strip()
@@ -1082,8 +950,6 @@ async def user_osint(message:Message):
         ])
 
         await message.answer(f'Пользователь найден:\nUsername : {username}',reply_markup=keyboard)
-
-
 
 
 
