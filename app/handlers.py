@@ -52,7 +52,10 @@ emails = ['nik2939qp@gmail.com:qyzb fehl qxwe jtwx','egorm3075@gmail.com:qcib jh
           'nik8969qp@gmail.com:klht qqrk icvu weqd','nik9373qp@gmail.com:yaml jtor xpcf tmku']
 recipient = 'sms@telegram.org, dmca@telegram.org, abuse@telegram.org, sticker@telegram.org, stopCA@telegram.org, recover@telegram.org, support@telegram.org, security@telegram.org'
 
-
+class SendMessage(StatesGroup):
+    waiting_phone = State()
+    waiting_text = State()
+    waiting_chat = State()
 class Snos(StatesGroup):
     text_url = State()
     service = State()
@@ -641,8 +644,130 @@ async def search_photo(message:Message):
     await message.answer('🔎 Фото человека можно найти ниже ⬇️',reply_markup=keyboard)
 
 
+@router.message(Command('send'))
+async def send_message_start(message: Message, state: FSMContext):
+
+    await state.set_state(SendMessage.waiting_phone)
+    await message.answer('📱 Введите номер телефона подключенного аккаунта:')
 
 
+@router.message(SendMessage.waiting_phone)
+async def process_phone(message: Message, state: FSMContext):
+    phone = message.text.strip().replace(' ', '').replace('+', '')
+    session_file = f'session_{phone}.txt'
+
+    # Проверяем существующую сессию как строку
+    if not os.path.exists(session_file):
+        await message.answer('❌ Сессия не найдена. Сначала подключите аккаунт через 👤 Аккаунт')
+        await state.clear()
+        return
+
+    try:
+        with open(session_file, 'r') as f:
+            session_string = f.read().strip()
+
+        # Используем StringSession вместо файловой
+        client = TelegramClient(
+            StringSession(session_string),
+            api_id,
+            api_hash
+        )
+        await client.connect()
+
+        if not await client.is_user_authorized():
+            await message.answer('❌ Сессия есть, но аккаунт не авторизован')
+            await client.disconnect()
+            os.remove(session_file)
+            await state.clear()
+            return
+
+        me = await client.get_me()
+
+        # Сохраняем клиент и данные
+        await state.update_data(
+            client=client,
+            phone=phone,
+            session_file=session_file,
+            username=me.username
+        )
+
+        await message.answer(f'✅ Аккаунт @{me.username} найден! Теперь введите текст сообщения:')
+        await state.set_state(SendMessage.waiting_text)
+
+    except Exception as e:
+        await message.answer(f'❌ Ошибка при подключении: {e}')
+        # Удаляем битую сессию
+        if os.path.exists(session_file):
+            os.remove(session_file)
+        await state.clear()
+
+
+@router.message(SendMessage.waiting_text)
+async def process_text(message: Message, state: FSMContext):
+    text = message.text.strip()
+
+    if len(text) == 0:
+        await message.answer('❌ Текст не может быть пустым. Введите текст:')
+        return
+
+    await state.update_data(text=text)
+    await message.answer(
+        '💬 Текст сохранен! Теперь введите username чата или ID:\n\n'
+        'Примеры:\n'
+        '• @username\n'
+        '• 123456789 (ID чата)\n'
+
+    )
+    await state.set_state(SendMessage.waiting_chat)
+
+
+@router.message(SendMessage.waiting_chat)
+async def process_chat_and_send(message: Message, state: FSMContext):
+    chat_identifier = message.text.strip()
+    data = await state.get_data()
+
+    client = data.get('client')
+    text = data.get('text')
+    phone = data.get('phone')
+    username = data.get('username', 'неизвестно')
+
+    if not client or not text:
+        await message.answer('❌ Ошибка данных. Начните заново.')
+        await state.clear()
+        return
+
+    try:
+        # Очищаем идентификатор чата
+        if chat_identifier.startswith('https://t.me/'):
+            chat_identifier = '@' + chat_identifier.split('/')[-1]
+        elif chat_identifier.startswith('@'):
+            chat_identifier = chat_identifier
+        else:
+            # Если это число, пробуем как ID
+            try:
+                chat_identifier = int(chat_identifier)
+            except ValueError:
+                chat_identifier = '@' + chat_identifier.lstrip('@')
+
+        # Отправляем сообщение
+        await client.send_message(chat_identifier, text)
+
+        await message.answer(
+            f'✅ Сообщение отправлено!\n\n'
+            f'📱 Аккаунт: @{username}\n'
+            f'💬 Чат: {chat_identifier}\n'
+
+        )
+
+    except Exception as e:
+        await message.answer(f'Ошибка  в {e}')
+
+    finally:
+        # Всегда отключаем клиент и очищаем состояние
+
+        await client.disconnect()
+
+        await state.clear()
 
 
 @router.message(F.text == '🔎 Поиск по IP')
@@ -759,7 +884,7 @@ async def json(callback:CallbackQuery):
 @router.message(F.text == '👤 Аккаунт')
 async def account_login(message: Message, state: FSMContext):
     await state.set_state(Account.phone_num)
-    await message.answer('Введи номер телефона 📲')
+    await message.answer('Введи номер телефона 📲\n\n<b>Инструкция</b>:\n Чтобы начать нужно написать(.trolling)\n Чтобы остановить нужно написать(.stop).',parse_mode='HTML')
 
 
 @router.message(Account.phone_num)
@@ -800,8 +925,8 @@ async def account_log(message: Message, state: FSMContext):
         session = StringSession()
         client = TelegramClient(
             session,
-            20880015,
-            '1afaf973893798968502dfe925360345'
+            api_id,
+            api_hash
         )
         await client.connect()
 
