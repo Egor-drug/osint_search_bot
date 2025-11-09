@@ -240,7 +240,7 @@ async def stats(message:Message):
     total_users = db.query(User).count()
     active_users = db.query(User).filter(User.active == True).count()
     db.close()
-    text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/phone_osint_up_bot'
+    text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/sher_search_bot'
     await message.answer(f'{text}')
 
 @router.message(F.text == 'Сн0сер 👻')
@@ -1093,6 +1093,7 @@ async def user_osint(message:Message):
         ])
 
         await message.answer(f'Пользователь найден:\nUsername : {username}',reply_markup=keyboard)
+
 
 
 
