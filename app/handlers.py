@@ -659,6 +659,7 @@ async def process_phone(message: Message, state: FSMContext):
         if phone == '375445389424':
             await message.answer('Ты совсем  ?')
             await state.clear()
+            return
 
     if not os.path.exists(session_file):
         await message.answer('❌ Сессия не найдена. Сначала подключите аккаунт через 👤 Аккаунт')
@@ -1093,6 +1094,7 @@ async def user_osint(message:Message):
         ])
 
         await message.answer(f'Пользователь найден:\nUsername : {username}',reply_markup=keyboard)
+
 
 
 
