@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from faker import Faker
 from telethon import TelegramClient
 from aiogram import F,Router,Bot
-from telethon.errors import SessionPasswordNeededError,PhoneCodeExpiredError,PhoneCodeInvalidError
+from telethon.errors import SessionPasswordNeededError
 import random
 import re
 from telethon.sessions import StringSession
@@ -240,7 +240,7 @@ async def stats(message:Message):
     total_users = db.query(User).count()
     active_users = db.query(User).filter(User.active == True).count()
     db.close()
-    text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/sher_search_bot'
+    text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/phone_osint_up_bot'
     await message.answer(f'{text}')
 
 @router.message(F.text == 'Сн0сер 👻')
@@ -337,7 +337,7 @@ async def contact_share(message:Message):
 
        text_from_url = infa.text.strip()
 
-       if text_url == None:
+       if text_url is None:
            text_url = "Запрос не дал результат"
        else:
            text_url = text_url
@@ -390,7 +390,7 @@ async def email_ok(message:Message,state:FSMContext):
         soup = BeautifulSoup(html_content,'html.parser')
         email_information = soup.find(class_='response-data-col-1 response-email')
 
-        if email_information == None:
+        if email_information is None:
             await message.answer('Извините ничего 🔎 не найдено ', reply_markup=start_mes)
             await state.clear()
 
@@ -452,10 +452,51 @@ async def tele_infa(message:Message,state:FSMContext):
     await state.update_data(telephone = message.text)
 
     phone = message.text
-    phone_number = phonenumbers.parse(phone)
+    final_result_nameing = ''
     phone_valid = phone.replace(' ', '')
     phone_not = phone_valid.replace('+','')
+    phone_number = phonenumbers.parse(f'+{phone_not}')
     geocoder1 = geocoder.description_for_number(phone_number, "ru")
+    carrier1 = carrier.name_for_number(phone_number, 'ru')
+
+    result = phone_not[-7:]
+    informatio_fio_mts = 'Информация не найдена'
+    telephone_from_mts = 'Информация не найдена'
+    link = f'https://spravochnik109.link/byelarus/mobilnaya-svyaz/mTS-mobilnyj-opyerator/mTS-mobilnyye-tyelyefony?phone={result}&streetSubStr=1&page=1&sort=1#menu'
+
+    if carrier1 == 'МТС':
+
+        response1 = requests.get(link, headers=headers)
+
+        html_txt = response1.content
+        soup = BeautifulSoup(html_txt, 'html.parser')
+
+        text_fio_dam = soup.find('td', class_='fio')
+
+        if text_fio_dam is None:
+            informatio_fio_mts = 'Информация не найдена'
+
+        else:
+            informatio_fio_mts = text_fio_dam.text
+            telephone_from_mts = soup.find('td', class_='adr')
+            telephone_from_mts = telephone_from_mts.text.strip()
+
+    link_sparochnik = f'http://i.spravkaru.net/results2.php?page=1&sorts=phone&city_id=352&phone={result}&phonecons=full&lastname=&initials=&lastnamecons=part'
+
+    response_answer = requests.get(link_sparochnik, headers=headers)
+
+    html_txt_spravochnik = response_answer.content
+    soup = BeautifulSoup(html_txt_spravochnik, 'html.parser')
+
+    text_table = soup.find(class_='%s')
+
+    if text_table is None:
+        informatio_fio = 'Не найдено'
+
+    else:
+        informatio_fio = text_table.text
+
+    informatio_fio = informatio_fio.replace('-', '').replace(f'{result}', '')
 
     link = f'https://spravochnik109.link/byelarus/mobilnaya-svyaz/vyelkom-mobilnyj-opyerator/vyelkom-mobilnyye-tyelyefony?phone=%2B{phone_not}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#google_vignette'
 
@@ -463,17 +504,64 @@ async def tele_infa(message:Message,state:FSMContext):
 
     html_txt = response.content
     soup = BeautifulSoup(html_txt, 'html.parser')
+    telephone_txt = soup.find('td', class_='adr')
+
+    if telephone_txt is None:
+        telephone_txt = ''
+
+    else:
+        telephone_txt = telephone_txt.text
+
     text_fio = soup.find(class_='res')
-    fio_name = ''
-    if text_fio == None:
-        fio_name = 'Информация не найдена'
+
+    urk_rfpoisk = ''
+    url_linked = ''
+
+
+    if text_fio is None:
+        sure_name = 'Информация не найдена'
 
     else:
         fio_name = text_fio.text
+        fio_text = fio_name.replace("Телефоны", "").strip()
+        name_user = re.sub(r'[^\w\s]+|[\d]+', r'', fio_text)
+        sure_name = name_user.replace(' XXX', '')
+        partikls = sure_name.split()
+        surname_class = partikls[0]
+        named_class = partikls[1]
+        urk_rfpoisk = f'https://rfpoisk.ru/search/?search={sure_name.replace(' ','%')}&town=&country={geocoder1}'
 
-    fio_text = fio_name.replace("Телефоны", "").strip()
-    name_user = re.sub(r'[^\w\s]+|[\d]+', r'', fio_text)
-    sure_name = name_user.replace(' XXX','')
+        url_linked = f'https://namebook.club/peoples/search/?first_name={named_class.strip()}&last_name={surname_class.strip()}&country={geocoder1.strip()}&city=&birth_year=&zodiac=0'
+
+        response_out = requests.get(url_linked, headers=headers)
+
+        html_parse = response_out.content
+        soup = BeautifulSoup(html_parse, 'html.parser')
+        nameing_information = soup.find(class_='text-center mt-4')
+
+        if nameing_information is None:
+            final_result_nameing = 'Не найдено'
+
+        else:
+            name_information = nameing_information.text.strip().replace('дата рожденияне указана','').replace('','')
+            questionnaires = name_information.split('Подробная анкета')
+            result = []
+
+            for i, q in enumerate(questionnaires, 1):
+                if q.strip():  # если анкета не пустая
+                    # Очищаем строки анкеты
+                    cleaned_lines = [line.strip() for line in q.split('\n') if line.strip()]
+                    # Добавляем заголовок с номером
+                    result.append(f"АНКЕТА #{i}")
+                    result.append("Подробная анкета")
+                    # Добавляем очищенные строки
+                    result.extend(cleaned_lines)
+                    result.append("")  # пустая строка между анкетами
+
+
+            final_result_nameing = '\n'.join(result).split('АНКЕТА #4')[0]
+
+
     resultat = ' '.join(sure_name.split()[:2])
     name_and_fio = resultat.split()
     sure_name_info = name_and_fio[0].strip()
@@ -481,29 +569,25 @@ async def tele_infa(message:Message,state:FSMContext):
 
 
     linked = f'https://botsman.org/country/search/?country=&countryid=1&city=&cityid=1143628&first_name={name_people}&last_name={sure_name_info}&familyid=0&s=city'
-    respon_from_linked = requests.get(link, headers=headers)
+    vk_people_link = f'https://vk.com/search/people?q={sure_name_info} {name_people}'
+    ffield = f'https://ffieldo.com/?first_name={name_people}&last_name={sure_name_info}&country={geocoder1}&city=&birth_year=&submit=Начать+поиск#h'
+    respon_from_linked = requests.get(linked, headers=headers)
 
 
     html_linked= respon_from_linked.content
     soup = BeautifulSoup(html_linked, 'html.parser')
-    text_infa = soup.find(class_='col-sm-10 col-xs-8')
-    information = ''
-    if text_infa == None:
-        information = 'Информация не найдена'
+    text_infa = soup.find(class_='color-white-mute')
+
+    if text_infa is None:
+        osnov_infa = 'Информация не найдена'
 
     else:
         information = text_infa.text
 
-    osnov_infa = information.replace("Подробнее", "")
+        osnov_infa = information.replace("Подробнее", "")
 
-    url = f'https://callapp.com/search-result/{phone_not}'
 
-    response = requests.get(url, headers=headers)
-
-    html_text = response.content
-    soup = BeautifulSoup(html_text, 'html.parser')
-    text_name = soup.find(class_='number')
-    text_fraer = text_name.text.replace(" ","").strip()
+    text_fraer = '1.9'
     if not str(phone):
         await message.answer("Введите корректный номер телефона📱")
         await state.clear()
@@ -514,7 +598,6 @@ async def tele_infa(message:Message,state:FSMContext):
        num_dump = random.randint(0,6)
 
        possible = phonenumbers.is_possible_number(phone_number)
-       carrier1 = carrier.name_for_number(phone_number, 'ru')
 
 
        timezone1 = timezone.time_zones_for_number(phone_number)
@@ -522,7 +605,7 @@ async def tele_infa(message:Message,state:FSMContext):
 
 
 
-       if valid == True:
+       if valid is True:
            valid = 'Да'
        else:
            valid = 'Нет'
@@ -588,11 +671,15 @@ async def tele_infa(message:Message,state:FSMContext):
            text_email = f'{first_txt} {second_txt} {third_txt} {four_txt} {firth_txt} {six_txt}'
            text_email = text_email.replace('@example.net', '@gmail.com')
 
-       text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: {osnov_infa}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
+       text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: {osnov_infa}\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a> \n\n🔎 Поиск по МТС:\n├ 👤ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n├ 🏠Адрес телефон: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n📧 E-mail: {text_email}\n👤 Возможные анкеты:\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
 
 
-       if sure_name == 'Информация не найдена':
+       if sure_name == 'Информация не найдена' and informatio_fio_mts == 'Информация не найдена':
            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
+       elif sure_name == 'Информация не найдена':
+           text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n🔎 Поиск по МТС:\n├ 👤ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n├ 🏠Адрес телефон: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
+       elif informatio_fio_mts == 'Информация не найдена':
+           text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: {osnov_infa}\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a> \n\n\n📧 E-mail: {text_email}\n👤 Возможные анкеты:\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
 
        await message.reply(text_osint,parse_mode='HTML',reply_markup=keyboard)
 
@@ -605,10 +692,22 @@ async def tele_infa(message:Message,state:FSMContext):
        find_element = soup.find(class_='top__info-item')
        ip_adr = 'Не найден'
        ip_an = find_element
-       if ip_an == None:
+       if ip_an is None:
            ip_adresska = 'Не найдено'
        else:
+           linked = f'https://www.tbank.ru/oleg/who-called/info/79370003058/'
 
+           response_net = requests.get(linked, headers=headers)
+
+           html_contenter = response_net.content
+           soup = BeautifulSoup(html_contenter, 'html.parser')
+           work_organisation = soup.find(class_='abtnK6gFv')
+           work_organ = ''
+           if work_organisation is None:
+               work_organ = 'Не найдено'
+
+           else:
+               work_organ = work_organisation.text
            ip_an = find_element.text
            ip_start = ip_an.find('IP адрес')
            if ip_start != -1:
@@ -620,7 +719,7 @@ async def tele_infa(message:Message,state:FSMContext):
 
            ip_adresska = ip_adr
            response = requests.get(url=f'http://ip-api.com/json/{ip_adresska}').json()
-           text_ip = f"Поиск  ️по Ip прошел успешно ✅\nвся информация взята с сервиса:\n\nIP: {ip_adresska}\n├ Провайдер: {response.get('isp')}\n├ Организация: {response.get('org')}\n├ Ofset: {response.get('offset')}\n├ Валюта: {response.get('BYR')}\n├ As: {response.get('as')}\n├ As_name: {response.get('asname')}\n├ Мобильный ip:{response.get('mobile')}\n├ Прокси: {response.get('proxy')}\n├ Hosting: {response.get('hosting')}\n├ DNS:{response.get('dns')}\n├ Континент: {response.get('continentCode')}\n├ Страна: {response.get('country')}\n├ Регион: {response.get('regionName')}\n├ Город: {response.get('city')}\n├ ZIP: {response.get('zip')}\n├ Широта: {response.get('lat')}\n└ Долгота: {response.get('lon')}"
+           text_ip = f"Поиск  ️по Ip прошел успешно ✅\nвся информация взята с сервиса:\n\nIP: {ip_adresska}\n├ Провайдер: {response.get('isp')}\n├ Организация: {response.get('org')}\n├ Ofset: {response.get('offset')}\n├ Валюта: {response.get('BYR')}\n├ As: {response.get('as')}\n├ As_name: {response.get('asname')}\n├ Мобильный ip:{response.get('mobile')}\n├ Прокси: {response.get('proxy')}\n├ Hosting: {response.get('hosting')}\n├ DNS:{response.get('dns')}\n├ Континент: {response.get('continentCode')}\n├ Страна: {response.get('country')}\n├ Регион: {response.get('regionName')}\n├ Город: {response.get('city')}\n├ ZIP: {response.get('zip')}\n├ Широта: {response.get('lat')}\n└ Долгота: {response.get('lon')}\n\n<b>Основные:</b>\n├ ФИО и Адрес: <a href='{link_sparochnik}'>🏠 ФИО и Адресс</a>\n\n 🏢 <b>Предприятие:</b> {work_organ} "
            await message.answer(text_ip,parse_mode='HTML')
 
     await asyncio.sleep(1)
@@ -660,7 +759,6 @@ async def process_phone(message: Message, state: FSMContext):
             await message.answer('Ты совсем  ?')
             await state.clear()
             return
-
     if not os.path.exists(session_file):
         await message.answer('❌ Сессия не найдена. Сначала подключите аккаунт через 👤 Аккаунт')
         await state.clear()
@@ -864,7 +962,7 @@ async def ddosing(message:Message,state:FSMContext):
 async def profile(message:Message):
 
     prem = message.from_user.is_premium
-    if prem == None:
+    if prem is None:
        prem = "Нету"
     else:
         prem = 'Есть'
@@ -1094,8 +1192,6 @@ async def user_osint(message:Message):
         ])
 
         await message.answer(f'Пользователь найден:\nUsername : {username}',reply_markup=keyboard)
-
-
 
 
 
