@@ -56,6 +56,8 @@ class SendMessage(StatesGroup):
     waiting_phone = State()
     waiting_text = State()
     waiting_chat = State()
+class Username(StatesGroup):
+    username = State()
 class Snos(StatesGroup):
     text_url = State()
     service = State()
@@ -243,7 +245,7 @@ async def stats(message:Message):
     text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/phone_osint_up_bot'
     await message.answer(f'{text}')
 
-@router.message(F.text == 'Сн0сер 👻')
+@router.message(Command('download'))
 async def snoser_starting(message:Message,state:FSMContext):
 
        keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -475,7 +477,6 @@ async def tele_infa(message:Message,state:FSMContext):
 
         if text_fio_dam is None:
             informatio_fio_mts = 'Информация не найдена'
-
         else:
             informatio_fio_mts = text_fio_dam.text
             telephone_from_mts = soup.find('td', class_='adr')
@@ -677,7 +678,7 @@ async def tele_infa(message:Message,state:FSMContext):
        if sure_name == 'Информация не найдена' and informatio_fio_mts == 'Информация не найдена':
            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
        elif sure_name == 'Информация не найдена':
-           text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n🔎 Поиск по МТС:\n├ 👤ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n├ 🏠Адрес телефон: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
+           text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n🔎 Поиск по МТС:\n├ 👤ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n├🌐 VK:<a href="https://vk.com/search/people?q={informatio_fio_mts}">Ссылка на VK здесь</a>\n├ 🏠Адрес телефон: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
        elif informatio_fio_mts == 'Информация не найдена':
            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: {osnov_infa}\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a> \n\n\n📧 E-mail: {text_email}\n👤 Возможные анкеты:\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
 
@@ -695,7 +696,7 @@ async def tele_infa(message:Message,state:FSMContext):
        if ip_an is None:
            ip_adresska = 'Не найдено'
        else:
-           linked = f'https://www.tbank.ru/oleg/who-called/info/79370003058/'
+           linked = f'https://www.tbank.ru/oleg/who-called/info/{phone_not}/'
 
            response_net = requests.get(linked, headers=headers)
 
@@ -884,7 +885,7 @@ async def ip_search(message:Message,state:FSMContext):
     if len(ip) < 10:
         await message.answer('Введи Ip коректно...')
         await state.clear()
-    elif country == None:
+    elif country is None:
         await message.answer('Увы информация не 📝 найдена. Такого IP не существует 💣.',reply_markup=start_mes)
         await state.clear()
     else:
@@ -909,6 +910,55 @@ async def ip_search(message:Message,state:FSMContext):
             await message.answer('Увы информация не найдена')
         await state.clear()
 
+@router.message(F.text == '👁️ Поиск username')
+async def user_name_osint(message:Message,state:FSMContext):
+    await message.answer('Введите username который вы хотите узнать.')
+    await state.set_state(Username.username)
+
+@router.message(Username.username)
+async def user_name_over(message:Message,state:FSMContext):
+    username = message.text.strip()
+    if username == '':
+        await message.answer('Ваш username не распознан',reply_markup=start_mes)
+        await state.clear()
+        return
+
+    if len(username) > 20:
+        await message.answer('Ваш username превышает лимит',reply_markup=start_mes)
+        await state.clear()
+        return
+    username = username.replace('@','')
+    text_github = 'None'
+    try:
+        response = requests.get(f"https://api.github.com/users/{username}", headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+
+            text_github = (
+                f"├ Name: {data.get('name')}\n├ Bio: {data.get('bio')}\n├ Location: {data.get('location')}\n├ Public_repos: {data.get('public_repos')}\n├ Profile: {data.get('html_url')}\n├ Email: {data.get('email')} "
+
+            )
+    except :
+        print(f"None in Github")
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='Instagram',url=f'https://www.instagram.com/{username}/'),InlineKeyboardButton(text='  Twitch', url=f'https://www.twitch.tv/{username}')],
+        [InlineKeyboardButton(text=' Facebook', url=f'https://www.facebook.com/{username}'), InlineKeyboardButton(text=' Twitter', url=f'https://x.com/{username}')],
+
+        [InlineKeyboardButton(text='  Vimeo', url=f'https://vimeo.com/{username}'), InlineKeyboardButton(text='Linkedln', url=f'https://www.linkedin.com/{username}')],
+        [InlineKeyboardButton(text=' Github', url=f'https://github.com/{username}'), InlineKeyboardButton(text='  Steam', url=f'https://steamcommunity.com/groups/{username}')],
+        [InlineKeyboardButton(text=' Minecraft', url=f'https://minecraftuuid.com/?search={username}'), InlineKeyboardButton(text='  Xbox', url=f'https://xboxgamertag.com/search/{username}')],
+        [InlineKeyboardButton(text='🔵 Telegram', url=f'https://t.me/{username}')],[InlineKeyboardButton(text='🔴  Youtube', url=f'https://www.youtube.com/@{username}')],
+        [InlineKeyboardButton(text=' Spotify', url=f'https://open.spotify.com/user/{username}'),InlineKeyboardButton(text=' Replit', url=f'https://replit.com/@{username}')],
+        [InlineKeyboardButton(text='  Rumble', url=f'https://rumble.com/user/{username}'), InlineKeyboardButton(text=' Hacker', url=f'https://news.ycombinator.com/user?id={username}')],
+        [InlineKeyboardButton(text=' Snapchat', url=f'https://www.snapchat.com/@{username}'), InlineKeyboardButton(text=' Reddit', url=f'https://www.reddit.com/user/{username}/')],
+
+        [InlineKeyboardButton(text=' Blusky', url=f'https://bsky.app/profile/{username}.bsky.social'),InlineKeyboardButton(text=' Gitlab', url=f'https://gitlab.com/{username}')],
+
+    ])
+    await asyncio.sleep(1.1)
+    await message.answer(f'🔎 Поиск прошел успешно:\n\n👤 Username: <b>{username}</b>\n\n👥 Github:\n{text_github}',parse_mode='HTML',reply_markup=keyboard)
+    await state.clear()
 @router.message(F.text == '💼 Простой Ddos')
 async def ddos_start(message:Message,state:FSMContext):
     await state.set_state(Ddoss.target)
