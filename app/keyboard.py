@@ -6,7 +6,7 @@ button = KeyboardButton(text="Выбрать пользователя", request_
 
 start_mes = ReplyKeyboardMarkup(keyboard=[
     [KeyboardButton(text='Поиск по номеру 📱'),KeyboardButton(text='🔎 Поиск по IP')],
-    [KeyboardButton(text='💼 Простой Ddos'),KeyboardButton(text='📧 E-mail')],
+    [KeyboardButton(text='👁️ Поиск username'),KeyboardButton(text='📧 E-mail')],
     [button,KeyboardButton(text='📖 Меню')],
 ],
 
@@ -17,7 +17,7 @@ start_mes = ReplyKeyboardMarkup(keyboard=[
 )
 
 menu_mes = ReplyKeyboardMarkup(keyboard=[
-  [KeyboardButton(text = 'Сн0сер 👻')],
+  [KeyboardButton(text = '💼 Простой Ddos')],
   [KeyboardButton(text='📊 Статистика'),KeyboardButton(text='💰 Пополнить')],
   [KeyboardButton(text='🕵️ ️Мой профиль'),KeyboardButton(text='👤 Аккаунт')]
 
@@ -34,4 +34,3 @@ json_user = InlineKeyboardMarkup(inline_keyboard=[
 sub_check = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Канал',url='https://t.me/development_progs')]
 ])
-
