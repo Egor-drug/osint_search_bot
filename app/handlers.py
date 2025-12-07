@@ -485,7 +485,7 @@ async def tele_infa(message: Message, state: FSMContext):
     carrier1 = carrier.name_for_number(phone_number, 'ru')
     date_of_birthday = "Не найдено"
     element_school = 'Информация не найдена'
-    element_info = 'Не найдено'
+    elements_info= 'Не найдено'
     elem_vk_id = 'Не найдено'
     result = phone_not[-7:]
     informatio_fio_mts = 'Информация не найдена'
@@ -598,7 +598,7 @@ async def tele_infa(message: Message, state: FSMContext):
                 elements_info = element_txt [0]
                 element_school = element_txt [2]
                 if elements_info is None:
-                    pass
+                    elements_info = 'Не найдено'
                 else:
                     elements_info = elements_info.text.replace('Телефон', '').replace(
                         'Aвторизуйтесь для просмотра контактных данных',
@@ -606,6 +606,7 @@ async def tele_infa(message: Message, state: FSMContext):
                         '...идет загрузка фотографий, подождите немного...', '').replace('Место проживания',
                                                                                          '').replace(
                         'Беларусь', '').strip()
+                    elements_info = ' '.join(elements_info.split())
 
                 if element_school is None:
                    element_school= 'Не неайдено'
@@ -736,7 +737,7 @@ async def tele_infa(message: Message, state: FSMContext):
         elif sure_name == 'Информация не найдена':
             text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n🔎 Поиск по МТС:\n├ 👤ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n├🌐 VK:<a href="https://vk.com/search/people?q={informatio_fio_mts}">Ссылка на VK здесь</a>\n├ 🏠Адрес телефон: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
         elif informatio_fio_mts == 'Информация не найдена':
-            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: <i>{date_of_birthday}</i>\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n├ Доп информация: {element_info}\n\n\n📧 E-mail: {text_email}\n👤 Возможные анкеты:\n├ 🏫 Образование:\n{element_school.strip()}\n├🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
+            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: <i>{date_of_birthday}</i>\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n├ <b>Доп информация</b>: <i>{elements_info}</i>\n\n📧 E-mail: {text_email}\n👤 Возможные анкеты:\n├ 🏫 Образование:\n{element_school.strip()}\n├🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
 
         await message.reply(text_osint, parse_mode='HTML', reply_markup=keyboard)
         if phone_not.startswith('7'):
