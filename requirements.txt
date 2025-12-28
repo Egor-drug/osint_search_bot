@@ -1,4 +1,4 @@
-aiodns==3.5.0
+
 aiofiles==24.1.0
 aiogram==3.20.0.post0
 aiohttp==3.11.18
@@ -24,6 +24,7 @@ requests-file==2.1.0
 six==1.17.0
 SQLAlchemy==2.0.43
 Telethon==1.40.0
+
 
 
 
