@@ -1,7 +1,6 @@
-
 aiofiles==24.1.0
 aiogram==3.20.0.post0
-aiohttp==3.13.2
+aiohttp==3.11.18
 aiosignal==1.3.2
 asyncio==4.0.0
 attrs==25.3.0
@@ -24,6 +23,8 @@ requests-file==2.1.0
 six==1.17.0
 SQLAlchemy==2.0.43
 Telethon==1.40.0
+
+
 
 
 
