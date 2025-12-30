@@ -64,8 +64,7 @@ class Snos(StatesGroup):
     service = State()
     report_url = State()
     count = State()
-class Inn(StatesGroup):
-    inn_text = State()
+
 
 class Email(StatesGroup):
     email = State()
@@ -477,7 +476,7 @@ async def tele_infa(message: Message, state: FSMContext):
     bot_message = await message.answer("Идет поиск 🔎 информации...")
     await state.update_data(telephone=message.text)
 
-    phone = message.text.replace('-','')
+    phone = message.text
     final_result_nameing = ''
     phone_valid = phone.replace(' ', '')
     phone_not = phone_valid.replace('+', '')
@@ -488,12 +487,6 @@ async def tele_infa(message: Message, state: FSMContext):
     element_school = 'Информация не найдена'
     elements_info= 'Не найдено'
     elem_vk_id = 'Не найдено'
-    minsk_raen = ''
-    vitebsk_raen = ''
-    grodno_raen = ''
-    brest_raen = ''
-    gomel_raen = ''
-    mogilef_raen = ''
     result = phone_not[-7:]
     informatio_fio_mts = 'Информация не найдена'
     telephone_from_mts = 'Информация не найдена'
@@ -558,105 +551,6 @@ async def tele_infa(message: Message, state: FSMContext):
         fio_name = text_fio.text
         fio_text = fio_name.replace("Телефоны", "").strip()
         name_user = re.sub(r'[^\w\s]+|[\d]+', r'', fio_text)
-
-        phone_net_obl = phone[-6:].replace('+','').replace(' ','')
-        link3 = f'https://spravochnik109.link/byelarus/bryesTSkaya-oblast/oblastnoj-tsyentr/bryest?phone={phone_net_obl}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-        link1 = f'https://spravochnik109.link/byelarus/vityebskaya-oblast/oblastnoj-tsyentr/vityebsk?phone={phone_net_obl}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-        link = f'https://spravochnik109.link/byelarus/minskaya-oblast/oblastnoj-tsyentr/minsk?phone=%2B{phone}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-        link2 = f'https://spravochnik109.link/byelarus/grodnyenskaya-oblast/oblastnoj-tsyentr/grodno?phone={phone_net_obl}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-        link4 = f'https://spravochnik109.link/byelarus/gomyelskaya-oblast/oblastnoj-tsyentr/gomyel?phone={phone_net_obl}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-        link5 = f'https://spravochnik109.link/byelarus/mogilyevskaya-oblast/oblastnoj-tsyentr/mogilyev?phone={phone_net_obl}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-
-        response = requests.get(link, headers=headers)
-        html_content = response.content
-        soup = BeautifulSoup(html_content, 'html.parser')
-
-        # Поиск элементов
-        text = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text is None:
-            minsk_raen = 'Не найдено'
-        else:
-            text_adr = soup.find('td', class_='adr')
-
-            minsk_raen = f'<a href="tg://copy?text=">{text.text.strip()}</a> Адрес: {text_adr.text}'
-
-        response1 = requests.get(link1, headers=headers)
-        html_content1 = response1.content
-        soup = BeautifulSoup(html_content1, 'html.parser')
-
-        # Поиск элементов
-        text1 = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text1 is None:
-            vitebsk_raen = 'Не найдено'
-        else:
-            text_adr1 = soup.find('td', class_='adr')
-
-            vitebsk_raen = f'<a href="tg://copy?text=">{text1.text.strip()}</a> Адрес: {text_adr1.text}'
-
-        response2 = requests.get(link2, headers=headers)
-        html_content2 = response2.content
-        soup = BeautifulSoup(html_content2, 'html.parser')
-
-        # Поиск элементов
-        text2 = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text2 is None:
-            grodno_raen = 'Не найдено'
-        else:
-            text_adr2 = soup.find('td', class_='adr')
-
-            grodno_raen = f'<a href="tg://copy?text=">{text2.text.strip()}</a> Адрес: {text_adr2.text}'
-
-        response3 = requests.get(link3, headers=headers)
-        html_content3 = response3.content
-        soup = BeautifulSoup(html_content3, 'html.parser')
-
-        # Поиск элементов
-        text3 = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text3 is None:
-            brest_raen = 'Не найдено'
-        else:
-            text_adr3 = soup.find('td', class_='adr')
-
-            brest_raen = f'<a href="tg://copy?text=">{text3.text.strip()}</a> Адрес: {text_adr3.text}'
-
-        response4 = requests.get(link4, headers=headers)
-        html_content4 = response4.content
-        soup = BeautifulSoup(html_content4, 'html.parser')
-
-        # Поиск элементов
-        text4 = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text4 is None:
-            gomel_raen ='Не найдено'
-        else:
-            text_adr4 = soup.find('td', class_='adr')
-
-            gomel_raen = f'<a href="tg://copy?text=">{text4.text.strip()}</a> Адрес: {text_adr4.text}'
-
-        response5 = requests.get(link5, headers=headers)
-        html_content5 = response5.content
-        soup = BeautifulSoup(html_content5, 'html.parser')
-
-        # Поиск элементов
-        text5 = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text5 is None:
-            mogilef_raen ='Не найдено'
-        else:
-            text_adr5 = soup.find('td', class_='adr')
-
-            mogilef_raen = f'<a href="tg://copy?text=">{text5.text.strip()}</a> Адрес: {text_adr5.text}'
-
         sure_name = name_user.replace(' XXX', '')
         partikls = sure_name.split()
         surname_class = partikls[0]
@@ -843,7 +737,7 @@ async def tele_infa(message: Message, state: FSMContext):
         elif sure_name == 'Информация не найдена':
             text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n🔎 Поиск по МТС:\n├ 👤ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n├🌐 VK:<a href="https://vk.com/search/people?q={informatio_fio_mts}">Ссылка на VK здесь</a>\n├ 🏠Адрес телефон: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
         elif informatio_fio_mts == 'Информация не найдена':
-            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: <i>{date_of_birthday}</i>\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n├ <b>Доп информация</b>: <i>{elements_info}</i>\n\n<b>👁️ Возможные Люди(домашний телефон)</b>:\n├ Минск: {minsk_raen}\n├ Витебск: {vitebsk_raen}\n├ Гродно: {grodno_raen}\n├ Брест: {brest_raen}\n├ Гомель: {gomel_raen}\n├ Могилев: {mogilef_raen}\n\n 📧 E-mail: {text_email}\n👤 Возможные анкеты:\n├ 🏫 Образование:\n{element_school.strip()}\n├🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
+            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: <i>{date_of_birthday}</i>\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n├ <b>Доп информация</b>: <i>{elements_info}</i>\n\n📧 E-mail: {text_email}\n👤 Возможные анкеты:\n├ 🏫 Образование:\n{element_school.strip()}\n├🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
 
         await message.reply(text_osint, parse_mode='HTML', reply_markup=keyboard)
         if phone_not.startswith('7'):
@@ -1134,56 +1028,7 @@ async def user_name_over(message: Message, state: FSMContext):
                          parse_mode='HTML', reply_markup=keyboard)
     await state.clear()
 
-@router.message(Command('inn'))
-async def get_inn(message:Message,state:FSMContext):
-    await message.answer('Введите ИНН организации :')
-    await state.set_state(Inn.inn_text)
 
-@router.message(Inn.inn_text)
-async def search_inn(message:Message,state:FSMContext):
-    inn_text = message.text.strip()
-    link = f'https://dazor.by/search?lang=by&search={inn_text}'
-    response = requests.get(link, headers=headers)
-    html_content = response.content
-    soup = BeautifulSoup(html_content, 'html.parser')
-
-    # Поиск элементов
-    text_inn_find = soup.find('dl', class_='mb-0')
-
-    # Обработка первого элемента
-    if text_inn_find is None:
-        text_inn_find = 'Не найдено.Введите ИНН коректно'
-    else:
-        text_inn_find = text_inn_find.text.strip()
-
-    lines = text_inn_find.split('\n')
-
-    # Ищем строку с "Код МНС:"
-    result_lines = []
-    for i in range(len(lines)):
-        if lines[i].strip() == "Код МНС:":
-            # Объединяем текущую строку и следующую строку (с 435)
-            if i + 1 < len(lines):
-                combined_line = lines[i].strip() + " " + lines[i + 1].strip()
-                result_lines.append(combined_line)
-                # Пропускаем следующую строку, так как мы её уже использовали
-                # Здесь нужно быть осторожным, чтобы не пропускать другие строки
-            else:
-                result_lines.append(lines[i].strip())
-        elif i > 0 and lines[i - 1].strip() == "Код МНС:":
-            # Эта строка уже обработана как часть предыдущей
-            continue
-        else:
-            result_lines.append(lines[i].strip())
-
-    # Выводим результат
-    text_inn_find = '\n'.join(result_lines)
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='🔴 Сайт',url=link)]
-    ])
-    await message.reply(f'<b>Поиск  🤖💻📱 прошел успешно:</b>\n\n├ ИНН : <a href="https://dazor.by/search?lang=by&search={inn_text}">{inn_text}</a>\n├ Основные данные :\n\n<i>{text_inn_find}</i>',parse_mode='HTML',reply_markup=keyboard)
-    await state.clear()
 @router.message(F.text == '💼 Простой Ddos')
 async def ddos_start(message: Message, state: FSMContext):
     await state.set_state(Ddoss.target)
@@ -1468,7 +1313,6 @@ async def user_osint(message: Message):
         ])
 
         await message.answer(f'Пользователь найден:\nUsername : {username}', reply_markup=keyboard)
-
 
 
 
