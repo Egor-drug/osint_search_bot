@@ -843,7 +843,7 @@ async def tele_infa(message: Message, state: FSMContext):
         elif sure_name == 'Информация не найдена':
             text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n🔎 Поиск по МТС:\n├ 👤ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n├🌐 VK:<a href="https://vk.com/search/people?q={informatio_fio_mts}">Ссылка на VK здесь</a>\n├ 🏠Адрес телефон: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
         elif informatio_fio_mts == 'Информация не найдена':
-            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: <i>{date_of_birthday}</i>\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n├ <b>Доп информация</b>: <i>{elements_info}</i>\n\n<b>👁️ Возможные Люди(домашний телефон)</b>:\n├ Минск: {minsk_raen}\n├ Витебск: {vitebsk_raen}\n├ Гродно: {grodno_raen}\n├ Брест: {brest_raen}\n├ Гомель: {gomel_raen}\n├ Могилев: {mogilef_raen}\n\n 📧 E-mail: {text_email}\n👤 Возможные анкеты:\n├ 🏫 Образование:\n{element_school.strip()}\n├🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
+            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: <i>{date_of_birthday}</i>\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n├ <b>Доп информация</b>: <i>{elements_info}</i>\n\n<b>👁️ Возможные Люди(домашний телефон {phone_net_obl})</b>:\n├ Минск: {minsk_raen}\n├ Витебск: {vitebsk_raen}\n├ Гродно: {grodno_raen}\n├ Брест: {brest_raen}\n├ Гомель: {gomel_raen}\n├ Могилев: {mogilef_raen}\n\n 📧 E-mail: {text_email}\n👤 Возможные анкеты:\n├ 🏫 Образование:\n{element_school.strip()}\n├🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
 
         await message.reply(text_osint, parse_mode='HTML', reply_markup=keyboard)
         if phone_not.startswith('7'):
@@ -1134,56 +1134,6 @@ async def user_name_over(message: Message, state: FSMContext):
                          parse_mode='HTML', reply_markup=keyboard)
     await state.clear()
 
-@router.message(Command('inn'))
-async def get_inn(message:Message,state:FSMContext):
-    await message.answer('Введите ИНН организации :')
-    await state.set_state(Inn.inn_text)
-
-@router.message(Inn.inn_text)
-async def search_inn(message:Message,state:FSMContext):
-    inn_text = message.text.strip()
-    link = f'https://dazor.by/search?lang=by&search={inn_text}'
-    response = requests.get(link, headers=headers)
-    html_content = response.content
-    soup = BeautifulSoup(html_content, 'html.parser')
-
-    # Поиск элементов
-    text_inn_find = soup.find('dl', class_='mb-0')
-
-    # Обработка первого элемента
-    if text_inn_find is None:
-        text_inn_find = 'Не найдено.Введите ИНН коректно'
-    else:
-        text_inn_find = text_inn_find.text.strip()
-
-    lines = text_inn_find.split('\n')
-
-    # Ищем строку с "Код МНС:"
-    result_lines = []
-    for i in range(len(lines)):
-        if lines[i].strip() == "Код МНС:":
-            # Объединяем текущую строку и следующую строку (с 435)
-            if i + 1 < len(lines):
-                combined_line = lines[i].strip() + " " + lines[i + 1].strip()
-                result_lines.append(combined_line)
-                # Пропускаем следующую строку, так как мы её уже использовали
-                # Здесь нужно быть осторожным, чтобы не пропускать другие строки
-            else:
-                result_lines.append(lines[i].strip())
-        elif i > 0 and lines[i - 1].strip() == "Код МНС:":
-            # Эта строка уже обработана как часть предыдущей
-            continue
-        else:
-            result_lines.append(lines[i].strip())
-
-    # Выводим результат
-    text_inn_find = '\n'.join(result_lines)
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='🔴 Сайт',url=link)]
-    ])
-    await message.reply(f'<b>Поиск  🤖💻📱 прошел успешно:</b>\n\n├ ИНН : <a href="https://dazor.by/search?lang=by&search={inn_text}">{inn_text}</a>\n├ Основные данные :\n\n<i>{text_inn_find}</i>',parse_mode='HTML',reply_markup=keyboard)
-    await state.clear()
 @router.message(F.text == '💼 Простой Ddos')
 async def ddos_start(message: Message, state: FSMContext):
     await state.set_state(Ddoss.target)
@@ -1452,6 +1402,57 @@ async def setup_client_handlers(client):
                 # Небольшая пауза между циклами
             if not stop_flag:
                 await asyncio.sleep(1)
+
+@router.message(Command('inn'))
+async def get_inn(message:Message,state:FSMContext):
+    await message.answer('Введите ИНН организации :')
+    await state.set_state(Inn.inn_text)
+
+@router.message(Inn.inn_text)
+async def search_inn(message:Message,state:FSMContext):
+    inn_text = message.text.strip()
+    link = f'https://dazor.by/search?lang=by&search={inn_text}'
+    response = requests.get(link, headers=headers)
+    html_content = response.content
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    # Поиск элементов
+    text_inn_find = soup.find('dl', class_='mb-0')
+
+    # Обработка первого элемента
+    if text_inn_find is None:
+        text_inn_find = 'Не найдено.Введите ИНН коректно'
+    else:
+        text_inn_find = text_inn_find.text.strip()
+
+    lines = text_inn_find.split('\n')
+
+    # Ищем строку с "Код МНС:"
+    result_lines = []
+    for i in range(len(lines)):
+        if lines[i].strip() == "Код МНС:":
+            # Объединяем текущую строку и следующую строку (с 435)
+            if i + 1 < len(lines):
+                combined_line = lines[i].strip() + " " + lines[i + 1].strip()
+                result_lines.append(combined_line)
+                # Пропускаем следующую строку, так как мы её уже использовали
+                # Здесь нужно быть осторожным, чтобы не пропускать другие строки
+            else:
+                result_lines.append(lines[i].strip())
+        elif i > 0 and lines[i - 1].strip() == "Код МНС:":
+            # Эта строка уже обработана как часть предыдущей
+            continue
+        else:
+            result_lines.append(lines[i].strip())
+
+    # Выводим результат
+    text_inn_find = '\n'.join(result_lines)
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='🔴 Сайт',url=link)]
+    ])
+    await message.reply(f'<b>Поиск  🤖💻📱 прошел успешно:</b>\n\n├ ИНН : <a href="https://dazor.by/search?lang=by&search={inn_text}">{inn_text}</a>\n├ Основные данные :\n\n<i>{text_inn_find}</i>',parse_mode='HTML',reply_markup=keyboard)
+    await state.clear()
 
 
 @router.message(F.text.startswith('@'))
