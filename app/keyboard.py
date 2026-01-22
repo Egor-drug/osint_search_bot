@@ -17,7 +17,7 @@ start_mes = ReplyKeyboardMarkup(keyboard=[
 )
 
 menu_mes = ReplyKeyboardMarkup(keyboard=[
-  [KeyboardButton(text = '💼 Простой Ddos')],
+  [KeyboardButton(text = '💼 Ddos'),KeyboardButton(text='👁️ Глаз Бога')],
   [KeyboardButton(text='📊 Статистика'),KeyboardButton(text='💰 Пополнить')],
   [KeyboardButton(text='🕵️ ️Мой профиль'),KeyboardButton(text='👤 Аккаунт')]
 
