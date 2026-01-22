@@ -48,7 +48,8 @@ emails = ['nik2939qp@gmail.com:qyzb fehl qxwe jtwx', 'egorm3075@gmail.com:qcib j
           'nik8969qp@gmail.com:klht qqrk icvu weqd', 'nik9373qp@gmail.com:yaml jtor xpcf tmku']
 recipient = 'sms@telegram.org, dmca@telegram.org, abuse@telegram.org, sticker@telegram.org, stopCA@telegram.org, recover@telegram.org, support@telegram.org, security@telegram.org'
 
-
+class God(StatesGroup):
+    phone = State()
 class SendMessage(StatesGroup):
     waiting_phone = State()
     waiting_text = State()
@@ -269,7 +270,7 @@ async def stats(message: Message):
     total_users = db.query(User).count()
     active_users = db.query(User).filter(User.active == True).count()
     db.close()
-    text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/phone_osint_up_bot'
+    text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/sher_search_bot'
     await message.answer(f'{text}')
 
 
@@ -1402,6 +1403,37 @@ async def setup_client_handlers(client):
                 # Небольшая пауза между циклами
             if not stop_flag:
                 await asyncio.sleep(1)
+
+@router.message(F.text == '👁️Глаз Бога')
+async def eye_of_god(message:Message,state:FSMContext):
+    await message.answer('Введи номер мобильного 📱 телефона жертвы 😭🥷.')
+    await state.set_state(God.phone)
+
+@router.message(God.phone)
+async def eye_of_god(message:Message,state:FSMContext):
+    phone = message.text.strip().replace(' ','').replace('+','').replace('-','')
+    payload = {
+        "token": "18baca3d-3abc-4f49-b91b-65eced749e29",
+        "query": f"{phone}"
+    }
+
+    response = requests.post(
+        "https://api-dyxless.cfd/query",
+        json=payload,
+        headers={"Content-Type": "application/json"}
+    )
+    data = response.json()
+    text = ''
+    status = data.get('status')
+    if status is False:
+        text = f'🔴 {data.get("message")}'
+    else:
+        text = f"<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n👁️ Контент{data.get('data')}"
+
+
+
+    await message.answer(f'{text}')
+    await state.clear()
 
 @router.message(Command('inn'))
 async def get_inn(message:Message,state:FSMContext):
