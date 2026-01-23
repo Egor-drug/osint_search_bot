@@ -1404,7 +1404,7 @@ async def setup_client_handlers(client):
             if not stop_flag:
                 await asyncio.sleep(1)
 
-@router.message(F.text == '👁️Глаз Бога')
+@router.message(F.text == '👁️ Глаз Бога')
 async def eye_of_god(message:Message,state:FSMContext):
     await message.answer('Введи номер мобильного 📱 телефона жертвы 😭🥷.')
     await state.set_state(God.phone)
@@ -1501,6 +1501,7 @@ async def user_osint(message: Message):
         ])
 
         await message.answer(f'Пользователь найден:\nUsername : {username}', reply_markup=keyboard)
+
 
 
 
