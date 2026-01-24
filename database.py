@@ -1,7 +1,8 @@
-from sqlalchemy import create_engine,String,Integer,Column,DateTime,Boolean
+from sqlalchemy import create_engine,String,Integer,Column,DateTime,Boolean,Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import datetime
+from datetime import date
 
 DATABASE_Url = 'sqlite:///./admin.db'
 
@@ -16,6 +17,8 @@ class User(Base):
     name = Column(String,nullable=True)
     register_at = Column(String,nullable=True)
     active = Column(Boolean,default=True)
+    premium = Column(Boolean,default=False)
+
 class BroadCast(Base):
     __tablename__ = 'broadcasts'
     id = Column(Integer,primary_key=True,index=True)
