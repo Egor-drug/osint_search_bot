@@ -13,7 +13,7 @@ from telethon import events
 
 from config import ADMIN_ID, TOKEN
 from database import SessionLocal, User, BroadCast
-
+from datetime import datetime
 from aiogram.enums import ChatMemberStatus
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.enums import ContentType
@@ -194,10 +194,15 @@ async def start(message: Message):
     db = SessionLocal()
     exiting = db.query(User).filter(User.telegram_id == message.from_user.id).first()
     if not exiting:
-        new_user = User(telegram_id=message.from_user.id, name=message.from_user.full_name)
+        new_user = User(telegram_id=message.from_user.id, name=message.from_user.full_name,register_at=datetime.now().isoformat())
         db.add(new_user)
         db.commit()
     db.close()
+    if message.from_user.id == ADMIN_ID:
+       user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+       user.premium = True
+       db.commit()
+       db.close()
 
     await message.answer_photo(
         photo='https://avatars.mds.yandex.net/i?id=026e7b7cf40d328b163e1db7cab9bed337c2b49e-5682063-images-thumbs&n=13',
@@ -240,9 +245,91 @@ async def menu(message: Message):
 
 @router.message(F.text == '💰 Пополнить')
 async def money_key(message: Message):
-    prices = [LabeledPrice(label="XTR", amount=15)]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='🔑 Подписка',callback_data='subcribe')],
+        [InlineKeyboardButton(text='Поддержка бота 💰',callback_data='support_bot')]
+    ])
+    await message.answer('🔃 Вот все наши предложения:',reply_markup=keyboard)
 
-    await message.answer_invoice(
+@router.callback_query(F.data == 'subcribe')
+async def premium_getting(callback:CallbackQuery):
+    prices = [LabeledPrice(label=Currency, amount=250)]
+    db = SessionLocal()
+    await callback.answer('')
+    # 1. Проверяем существующего пользователя
+    user = db.query(User).filter(User.telegram_id == str(callback.from_user.id)).first()
+    if user.premium is True:
+        await callback.message.answer('У вас уже есть подписка 💎Premium')
+        return
+    db.close()
+
+    await callback.message.answer_invoice(
+        title='Покупка 💎Premium для бота',
+        description='Купить запросы для пробива бота 👁️',
+        prices=prices,
+        provider_token='',
+        payload='channel_support',
+        currency=Currency,
+        reply_markup=payment,
+    )
+
+
+@router.pre_checkout_query()
+async def prechekout_query(pre_checkout_query: PreCheckoutQuery):
+    await pre_checkout_query.answer(ok=True)
+
+
+@router.message(F.successful_payment)
+async def successful_payment(message: Message):
+    db = SessionLocal()
+
+    # 1. Проверяем существующего пользователя
+    user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+    user.premium = True
+    db.commit()
+    db.close()
+    payment_sys = message.successful_payment
+
+
+
+    if payment_sys.currency == 'XTR':
+        stars_received = payment_sys.total_amount  # Количество полученных звёзд
+
+        # Отправляем подтверждение с эффектом
+        await message.answer(
+            f"✅ Вы получили премиум ⭐ на месяц.\n"
+            
+            f"✅ **Получено:** {stars_received} звёзд ⭐\n"
+            f"👤 **От:** {message.from_user.full_name}\n"
+            f"🆔 **ID платежа:** `{payment_sys.telegram_payment_charge_id}`\n\n"
+            f"💝 Ваша поддержка очень важна для развития бота!\n"
+            f"Спасибо, что вы с нами! ✨",
+            message_effect_id="5104841245755180586"
+        )
+
+
+        # Отправляем дополнительное сообщение (опционально)
+        await message.answer(
+            "💎 **Спасибо еще раз!**\n\n"
+            "Если у вас есть вопросы или предложения,\n"
+            "используйте команду /help или напишите нам!"
+        )
+
+    else:
+        # Если платеж не в звёздах (на всякий случай)
+        await message.answer(
+            f"✅ Платёж получен!\n"
+            f"Сумма: {payment_sys.total_amount} {payment.currency}\n"
+            f"ID: {payment_sys.telegram_payment_charge_id}"
+        )
+
+
+@router.callback_query(F.data == 'support_bot')
+async def support_to_bot(callback:CallbackQuery):
+
+    prices = [LabeledPrice(label="XTR", amount=20)]
+    await callback.answer('')
+    await callback.message.answer_invoice(
         title='Поддержка бота 💰',
         description='Поддрежка звездами ⭐',
         prices=prices,
@@ -260,8 +347,53 @@ async def prechekout_query(pre_checkout_query: PreCheckoutQuery):
 
 @router.message(F.successful_payment)
 async def successful_payment(message: Message):
-    await message.answer(f'{message.successful_payment.telegram_payment_charge_id}',
-                         message_effect_id="5104841245755180586")
+    payment_sys = message.successful_payment
+
+
+    # Проверяем, что это действительно звёзды (XTR)
+    if payment_sys.currency == 'XTR':
+        stars_received = payment_sys.total_amount  # Количество полученных звёзд
+
+        # Отправляем подтверждение с эффектом
+        await message.answer(
+            f"🎉 **Спасибо за поддержку!** 🎉\n\n"
+            f"✅ **Получено:** {stars_received} звёзд ⭐\n"
+            f"👤 **От:** {message.from_user.full_name}\n"
+            f"🆔 **ID платежа:** `{payment_sys.telegram_payment_charge_id}`\n\n"
+            f"💝 Ваша поддержка очень важна для развития бота!\n"
+            f"Спасибо, что вы с нами! ✨",
+            message_effect_id="5104841245755180586"
+        )
+
+        # Здесь можно добавить логику:
+        # 1. Сохранить в базу данных
+        # 2. Начислить бонусы/привилегии
+        # 3. Отправить уведомление админу
+        # 4. Обновить статистику
+
+        # Пример сохранения в БД (если есть)
+        # await save_payment_to_db(
+        #     user_id=user_id,
+        #     amount=stars_received,
+        #     currency='XTR',
+        #     payment_id=payment.telegram_payment_charge_id,
+        #     date=message.date
+        # )
+
+        # Отправляем дополнительное сообщение (опционально)
+        await message.answer(
+            "💎 **Спасибо еще раз!**\n\n"
+            "Если у вас есть вопросы или предложения,\n"
+            "используйте команду /help или напишите нам!"
+        )
+
+    else:
+        # Если платеж не в звёздах (на всякий случай)
+        await message.answer(
+            f"✅ Платёж получен!\n"
+            f"Сумма: {payment_sys.total_amount} {payment.currency}\n"
+            f"ID: {payment_sys.telegram_payment_charge_id}"
+        )
 
 
 @router.message(F.text == '📊 Статистика')
@@ -1135,7 +1267,7 @@ async def user_name_over(message: Message, state: FSMContext):
                          parse_mode='HTML', reply_markup=keyboard)
     await state.clear()
 
-@router.message(F.text == '💼 Простой Ddos')
+@router.message(F.text == '💼 Ddos')
 async def ddos_start(message: Message, state: FSMContext):
     await state.set_state(Ddoss.target)
     await message.answer("Введите URL 🔎 жертвы 🌍💻 ")
@@ -1188,15 +1320,18 @@ async def ddosing(message: Message, state: FSMContext):
 
 @router.message(F.text == '🕵️ ️Мой профиль')
 async def profile(message: Message):
-    prem = message.from_user.is_premium
-    if prem is None:
-        prem = "Нету"
-    else:
-        prem = 'Есть'
+    db = SessionLocal()
+
+    # 1. Проверяем существующего пользователя
+    user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+    premium_by_us = user.premium
+    user_register_at = user.register_at
+    db.close()
+
 
     await message.reply(
-        f'Мой профиль🧰:\n\n├ Имя: {message.from_user.full_name}\n├ Username: @{message.from_user.username}\n├ Telegram_Id: {message.from_user.id}\n├ Баланс: 0$\n├ Премиум: {prem}\n└ Язык: {message.from_user.language_code}',
-        reply_markup=json_user)
+        f'ℹ️ Вся необходимая информация о вашем профиле\n\n🏷️ <b>Имя:</b> <a href="tg://copy?text=ddddd">{message.from_user.full_name}</a>\n🔗<b>Username:</b> @{message.from_user.username}\n\n🆔 <b>Мой ID:</b> <a href="tg://copy?text=ddddddd">6947365047</a>\n📆 <b>Регистрация:</b> <a href="tg://copy?text=fdddd">{user_register_at}</a>\n🔃 <b>TG Премиум:</b> {message.from_user.is_premium}\n🧮 <b>Купленные запросы:</b> <a href="tg://copy?text=dddd">0</a>\n\n🔑 <b>Подписка:</b> {premium_by_us}\n🗣️ <b>Язык:</b> <b>{message.from_user.language_code}</b>\n\n💰 Твой баланс: <a href="tg://copy?text=0.00">0.00 RUB</a>\n',
+        reply_markup=json_user,parse_mode="HTML")
 
 
 @router.callback_query(F.data == 'json')
@@ -1406,8 +1541,17 @@ async def setup_client_handlers(client):
 
 @router.message(F.text == '👁️ Глаз Бога')
 async def eye_of_god(message:Message,state:FSMContext):
-    await message.answer('Введи номер мобильного 📱 телефона жертвы 😭🥷.')
-    await state.set_state(God.phone)
+    db = SessionLocal()
+    user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+    premium_user = user.premium
+    db.close()
+    if premium_user is True:
+       await message.answer('Введи номер мобильного 📱 телефона жертвы 😭🥷.')
+       await state.set_state(God.phone)
+       return
+    else:
+       await message.answer('❌ Чтобы использовать данную функцию нужно иметь 💎Premium')
+       return
 
 @router.message(God.phone)
 async def eye_of_god(message:Message,state:FSMContext):
@@ -1501,7 +1645,6 @@ async def user_osint(message: Message):
         ])
 
         await message.answer(f'Пользователь найден:\nUsername : {username}', reply_markup=keyboard)
-
 
 
 
