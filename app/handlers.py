@@ -43,10 +43,17 @@ headers = {
     "Referer": "https://www.google.com/"
                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
 }
+
+admin_list = [ADMIN_ID]
+
 emails = ['nik2939qp@gmail.com:qyzb fehl qxwe jtwx', 'egorm3075@gmail.com:qcib jhjt gckq opqt',
           'sashamorozov907@gmail.com:vvjf zpqr mcyo vpjs', 'nik4828qp@gmail.com:wxpi zgup qmkx rzee',
           'nik8969qp@gmail.com:klht qqrk icvu weqd', 'nik9373qp@gmail.com:yaml jtor xpcf tmku']
 recipient = 'sms@telegram.org, dmca@telegram.org, abuse@telegram.org, sticker@telegram.org, stopCA@telegram.org, recover@telegram.org, support@telegram.org, security@telegram.org'
+
+
+class Admin(StatesGroup):
+    admin_id = State()
 
 class God(StatesGroup):
     phone = State()
@@ -130,10 +137,13 @@ def back_menu():
 
 @router.message(Command("admin"))
 async def admin_panel(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id in admin_list:
+        await message.answer("Добро пожаловать в админ панель бота 🌍❤️❤️!", reply_markup=admin_main_menu())
+        return
+    else:
         await message.answer('У вас нет доступа к этой команде.')
         return
-    await message.answer("Добро пожаловать в админ панель бота 🌍❤️❤️!", reply_markup=admin_main_menu())
+
 
 
 @router.callback_query(F.data == 'back')
@@ -259,18 +269,19 @@ async def premium_getting(callback:CallbackQuery):
     # 1. Проверяем существующего пользователя
     user = db.query(User).filter(User.telegram_id == str(callback.from_user.id)).first()
     if user.premium is True:
-        await callback.message.answer('У вас уже есть подписка 💎Premium')
+        await callback.message.answer('✅ У вас уже есть 🔑 <b>Подписка</b>',parse_mode="HTML")
         return
     db.close()
 
     await callback.message.answer_invoice(
-        title='Покупка 💎Premium для бота',
-        description='Купить запросы для пробива бота 👁️',
+        title='Покупка 🔑 <b>Подписки</b> для бота',
+        description='Купить запросы для пробив бота 👁️',
         prices=prices,
         provider_token='',
         payload='channel_support',
         currency=Currency,
         reply_markup=payment,
+        parse_mode = "HTML"
     )
 
 
@@ -394,6 +405,43 @@ async def successful_payment(message: Message):
             f"Сумма: {payment_sys.total_amount} {payment.currency}\n"
             f"ID: {payment_sys.telegram_payment_charge_id}"
         )
+
+@router.message(Command('add_admin'))
+async def add_admin(message:Message,state:FSMContext):
+    if message.from_user.id == ADMIN_ID:
+       await message.answer('🔃 Введите ID админа которого хотите добавить:')
+       await state.set_state(Admin.admin_id)
+       return
+    else:
+        await message.answer('❌ Вы не имеете доступа к этой команде')
+        return
+
+@router.message(Admin.admin_id)
+async def adding_admin(message:Message,state:FSMContext):
+    try:
+        admin_id = int(message.text.strip())
+
+        # Проверка корректности ID
+        if admin_id <= 0:
+            await message.answer('❌ ID должен быть положительным числом')
+            await state.clear()
+            return
+
+        # Проверка, если ID уже в списке админов
+        if admin_id in admin_list:
+            await message.answer('⚠️ Этот ID уже есть в списке администраторов')
+            await state.clear()
+            return
+
+
+        admin_list.append(admin_id)
+        await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов.')
+
+
+    except ValueError:
+        await message.answer('❌ Пожалуйста, введите корректный числовой ID')
+    finally:
+        await state.clear()
 
 
 @router.message(F.text == '📊 Статистика')
@@ -1267,7 +1315,7 @@ async def user_name_over(message: Message, state: FSMContext):
                          parse_mode='HTML', reply_markup=keyboard)
     await state.clear()
 
-@router.message(F.text == '💼 Ddos')
+@router.message(F.text == '💼 Dos')
 async def ddos_start(message: Message, state: FSMContext):
     await state.set_state(Ddoss.target)
     await message.answer("Введите URL 🔎 жертвы 🌍💻 ")
@@ -1328,6 +1376,10 @@ async def profile(message: Message):
     user_register_at = user.register_at
     db.close()
 
+    if premium_by_us is True:
+        premium_by_us = '✅'
+    else:
+        premium_by_us = '❌'
 
     await message.reply(
         f'ℹ️ Вся необходимая информация о вашем профиле\n\n🏷️ <b>Имя:</b> <a href="tg://copy?text=ddddd">{message.from_user.full_name}</a>\n🔗<b>Username:</b> @{message.from_user.username}\n\n🆔 <b>Мой ID:</b> <a href="tg://copy?text=ddddddd">6947365047</a>\n📆 <b>Регистрация:</b> <a href="tg://copy?text=fdddd">{user_register_at}</a>\n🔃 <b>TG Премиум:</b> {message.from_user.is_premium}\n🧮 <b>Купленные запросы:</b> <a href="tg://copy?text=dddd">0</a>\n\n🔑 <b>Подписка:</b> {premium_by_us}\n🗣️ <b>Язык:</b> <b>{message.from_user.language_code}</b>\n\n💰 Твой баланс: <a href="tg://copy?text=0.00">0.00 RUB</a>\n',
@@ -1391,7 +1443,7 @@ async def account_log(message: Message, state: FSMContext):
         await client.connect()
 
         send_code = await client.send_code_request(phone=phone)
-
+        print(send_code.phone_code_hash,api_hash,api_id)
         await state.update_data(
             hashing=send_code.phone_code_hash,
             client=client,
@@ -1550,7 +1602,7 @@ async def eye_of_god(message:Message,state:FSMContext):
        await state.set_state(God.phone)
        return
     else:
-       await message.answer('❌ Чтобы использовать данную функцию нужно иметь 💎Premium')
+       await message.answer('❌ Чтобы использовать данную функцию нужно иметь 🔑 <b>Подписку</b>',parse_mode="HTML")
        return
 
 @router.message(God.phone)
