@@ -241,8 +241,8 @@ async def search(message: Message):
     await asyncio.sleep(1)
 
     await message.reply(
-        f'Ваш пользователь пробит:\n\n├📝 Id: {message_id_user}\n├💭 Ссылка:{shares}\n\n└ Info: {phone_user}\n',
-        reply_markup=keyboard)
+        f'Ваш пользователь найден:\n\n├ 🆔 Id: <a href="tg://copy?text={message_id_user}">{message_id_user}</a>\n├ ➡️ Ссылка: <a href="{shares}">Вот ссылка на аккаунты 👥</a>\n\n└ Info: {phone_user}\n',
+        reply_markup=keyboard,parse_mode='HTML')
 
     await asyncio.sleep(2)
     await message.answer("🤖Поиск завершен", reply_markup=start_mes)
