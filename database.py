@@ -18,6 +18,7 @@ class User(Base):
     register_at = Column(String,nullable=True)
     active = Column(Boolean,default=True)
     premium = Column(Boolean,default=False)
+    queries = Column(Integer,default=0)
 
 class BroadCast(Base):
     __tablename__ = 'broadcasts'
