@@ -211,6 +211,7 @@ async def start(message: Message):
     if message.from_user.id == ADMIN_ID:
        user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
        user.premium = True
+       user.queries = 50
        db.commit()
        db.close()
 
@@ -228,6 +229,26 @@ async def start(message: Message):
 async def search(message: Message):
     bot_message = await message.answer("🔎Идет поиск информации...")
     usera = message.user_shared
+    user_details = ""
+    try:
+        # Получаем информацию о пользователе через Bot API
+        user_info = await bot.get_chat(usera.user_id)
+        user_name = user_info.username
+        first_name = user_info.first_name
+        last_name = user_info.last_name
+
+        # Формируем информацию о пользователе
+
+        if first_name:
+            user_details += f"├ 🏷️ Имя: {first_name}\n"
+        if last_name:
+            user_details += f"├ Фамилия: {last_name}\n"
+        if user_name:
+            user_details += f"├ 🔃Username: @{user_name}\n"
+
+    except Exception as e:
+        user_details = f""
+
 
     message_id_user = usera.user_id
 
@@ -241,7 +262,7 @@ async def search(message: Message):
     await asyncio.sleep(1)
 
     await message.reply(
-        f'Ваш пользователь найден:\n\n├ 🆔 Id: <a href="tg://copy?text={message_id_user}">{message_id_user}</a>\n├ ➡️ Ссылка: <a href="{shares}">Вот ссылка на аккаунты 👥</a>\n\n└ Info: {phone_user}\n',
+        f'Ваш пользователь найден:\n\n{user_details}├ 🆔 Id: <a href="tg://copy?text={message_id_user}">{message_id_user}</a>\n├ ➡️ Ссылка: <a href="{shares}">Вот ссылка на аккаунты 👥</a>\n\n└ Info: {phone_user}\n',
         reply_markup=keyboard,parse_mode='HTML')
 
     await asyncio.sleep(2)
@@ -297,6 +318,7 @@ async def successful_payment(message: Message):
     # 1. Проверяем существующего пользователя
     user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
     user.premium = True
+    user.queries = 50
     db.commit()
     db.close()
     payment_sys = message.successful_payment
@@ -308,7 +330,7 @@ async def successful_payment(message: Message):
 
         # Отправляем подтверждение с эффектом
         await message.answer(
-            f"✅ Вы получили премиум ⭐ на месяц.\n"
+            f"✅ Вы получили Подписку 🔑 на месяц.\n"
             
             f"✅ **Получено:** {stars_received} звёзд ⭐\n"
             f"👤 **От:** {message.from_user.full_name}\n"
@@ -406,42 +428,7 @@ async def successful_payment(message: Message):
             f"ID: {payment_sys.telegram_payment_charge_id}"
         )
 
-@router.message(Command('add_admin'))
-async def add_admin(message:Message,state:FSMContext):
-    if message.from_user.id == ADMIN_ID:
-       await message.answer('🔃 Введите ID админа которого хотите добавить:')
-       await state.set_state(Admin.admin_id)
-       return
-    else:
-        await message.answer('❌ Вы не имеете доступа к этой команде')
-        return
 
-@router.message(Admin.admin_id)
-async def adding_admin(message:Message,state:FSMContext):
-    try:
-        admin_id = int(message.text.strip())
-
-        # Проверка корректности ID
-        if admin_id <= 0:
-            await message.answer('❌ ID должен быть положительным числом')
-            await state.clear()
-            return
-
-        # Проверка, если ID уже в списке админов
-        if admin_id in admin_list:
-            await message.answer('⚠️ Этот ID уже есть в списке администраторов')
-            await state.clear()
-            return
-
-
-        admin_list.append(admin_id)
-        await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов.')
-
-
-    except ValueError:
-        await message.answer('❌ Пожалуйста, введите корректный числовой ID')
-    finally:
-        await state.clear()
 
 
 @router.message(F.text == '📊 Статистика')
@@ -1374,6 +1361,7 @@ async def profile(message: Message):
     user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
     premium_by_us = user.premium
     user_register_at = user.register_at
+    queries_user = user.queries
     db.close()
 
     if premium_by_us is True:
@@ -1382,7 +1370,7 @@ async def profile(message: Message):
         premium_by_us = '❌'
 
     await message.reply(
-        f'ℹ️ Вся необходимая информация о вашем профиле\n\n🏷️ <b>Имя:</b> <a href="tg://copy?text=ddddd">{message.from_user.full_name}</a>\n🔗<b>Username:</b> @{message.from_user.username}\n\n🆔 <b>Мой ID:</b> <a href="tg://copy?text=ddddddd">6947365047</a>\n📆 <b>Регистрация:</b> <a href="tg://copy?text=fdddd">{user_register_at}</a>\n🔃 <b>TG Премиум:</b> {message.from_user.is_premium}\n🧮 <b>Купленные запросы:</b> <a href="tg://copy?text=dddd">0</a>\n\n🔑 <b>Подписка:</b> {premium_by_us}\n🗣️ <b>Язык:</b> <b>{message.from_user.language_code}</b>\n\n💰 Твой баланс: <a href="tg://copy?text=0.00">0.00 RUB</a>\n',
+        f'ℹ️ Вся необходимая информация о вашем профиле\n\n🏷️ <b>Имя:</b> <a href="tg://copy?text=ddddd">{message.from_user.full_name}</a>\n🔗<b>Username:</b> @{message.from_user.username}\n\n🆔 <b>Мой ID:</b> <a href="tg://copy?text=ddddddd">6947365047</a>\n📆 <b>Регистрация:</b> <a href="tg://copy?text=fdddd">{user_register_at}</a>\n🔃 <b>TG Премиум:</b> {message.from_user.is_premium}\n🧮 <b>Купленные запросы:</b> <a href="tg://copy?text=dddd">{queries_user}</a>\n\n🔑 <b>Подписка:</b> {premium_by_us}\n🗣️ <b>Язык:</b> <b>{message.from_user.language_code}</b>\n\n💰 Твой баланс: <a href="tg://copy?text=0.00">0.00 RUB</a>\n',
         reply_markup=json_user,parse_mode="HTML")
 
 
@@ -1608,28 +1596,42 @@ async def eye_of_god(message:Message,state:FSMContext):
 @router.message(God.phone)
 async def eye_of_god(message:Message,state:FSMContext):
     phone = message.text.strip().replace(' ','').replace('+','').replace('-','')
-    payload = {
-        "token": "18baca3d-3abc-4f49-b91b-65eced749e29",
-        "query": f"{phone}"
-    }
 
-    response = requests.post(
-        "https://api-dyxless.cfd/query",
-        json=payload,
-        headers={"Content-Type": "application/json"}
-    )
-    data = response.json()
-    text = ''
-    status = data.get('status')
-    if status is False:
-        text = f'🔴 {data.get("message")}'
+    db = SessionLocal()
+    user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+    queries_user = user.queries
+
+    if queries_user > 1:
+        payload = {
+           "token": "18baca3d-3abc-4f49-b91b-65eced749e29",
+           "query": f"{phone}"
+        }
+
+        response = requests.post(
+             "https://api-dyxless.cfd/query",
+             json=payload,
+             headers={"Content-Type": "application/json"}
+        )
+        data = response.json()
+        text = ''
+        status = data.get('status')
+        if status is False:
+            text = f'🔴 {data.get("message")}'
+        else:
+            text = f"<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n👁️ Контент{data.get('data')}"
+
+        await message.answer(f'{text}')
+        await state.clear()
+
+        user.queries = user.queries - 1
+        db.commit()
+
     else:
-        text = f"<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n👁️ Контент{data.get('data')}"
+        await message.answer(f'🔴 У вас не хватает запросов ,Подписку🔑 можно купить в конце месяца.')
+        await state.clear()
 
+    db.close()
 
-
-    await message.answer(f'{text}')
-    await state.clear()
 
 @router.message(Command('inn'))
 async def get_inn(message:Message,state:FSMContext):
@@ -1682,6 +1684,42 @@ async def search_inn(message:Message,state:FSMContext):
     await message.reply(f'<b>Поиск  🤖💻📱 прошел успешно:</b>\n\n├ ИНН : <a href="https://dazor.by/search?lang=by&search={inn_text}">{inn_text}</a>\n├ Основные данные :\n\n<i>{text_inn_find}</i>',parse_mode='HTML',reply_markup=keyboard)
     await state.clear()
 
+@router.message(Command('add_admin'))
+async def add_admin(message:Message,state:FSMContext):
+    if message.from_user.id == ADMIN_ID:
+       await message.answer('🔃 Введите ID админа которого хотите добавить:')
+       await state.set_state(Admin.admin_id)
+       return
+    else:
+        await message.answer('❌ Вы не имеете доступа к этой команде')
+        return
+
+@router.message(Admin.admin_id)
+async def adding_admin(message:Message,state:FSMContext):
+    try:
+        admin_id = int(message.text.strip())
+
+        # Проверка корректности ID
+        if admin_id <= 0:
+            await message.answer('❌ ID должен быть положительным числом')
+            await state.clear()
+            return
+
+        # Проверка, если ID уже в списке админов
+        if admin_id in admin_list:
+            await message.answer('⚠️ Этот ID уже есть в списке администраторов')
+            await state.clear()
+            return
+
+
+        admin_list.append(admin_id)
+        await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов.')
+
+
+    except ValueError:
+        await message.answer('❌ Пожалуйста, введите корректный числовой ID')
+    finally:
+        await state.clear()
 
 @router.message(F.text.startswith('@'))
 async def user_osint(message: Message):
