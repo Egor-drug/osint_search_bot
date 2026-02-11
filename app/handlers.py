@@ -455,7 +455,14 @@ async def snoser_starting(message: Message, state: FSMContext):
         [InlineKeyboardButton(text='⬇️ Скачать', callback_data='download')]
 
     ])
-    await message.answer('Выберите пункт для сноса', reply_markup=keyboard)
+    db = SessionLocal()
+    user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+    premium_user = user.premium
+    db.close()
+    if premium_user is True:
+        await message.answer('Выберите пункт для сноса', reply_markup=keyboard)
+    else:
+        await message.answer('❌ У вас нет 🔑Подписки в боте')
 
 
 @router.callback_query(F.data == 'snos_by_text')
@@ -650,6 +657,14 @@ async def tele_osint(message: Message, state: FSMContext):
 async def tele_infa(message: Message, state: FSMContext):
     bot_message = await message.answer("Идет поиск 🔎 информации...")
     await state.update_data(telephone=message.text)
+
+    db = SessionLocal()
+
+    # 1. Проверяем существующего пользователя
+    user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+    premium_by_us = user.premium
+
+    db.close()
 
     phone = message.text.replace('-','')
     final_result_nameing = ''
@@ -1014,10 +1029,12 @@ async def tele_infa(message: Message, state: FSMContext):
 
         if sure_name == 'Информация не найдена' and informatio_fio_mts == 'Информация не найдена':
             text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
-        elif sure_name == 'Информация не найдена':
+        elif sure_name == 'Информация не найдена' and premium_by_us == True:
             text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n🔎 Поиск по МТС:\n├ 👤ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n├🌐 VK:<a href="https://vk.com/search/people?q={informatio_fio_mts}">Ссылка на VK здесь</a>\n├ 🏠Адрес телефон: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
-        elif informatio_fio_mts == 'Информация не найдена':
+        elif informatio_fio_mts == 'Информация не найдена' and premium_by_us == True:
             text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: <i>{date_of_birthday}</i>\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n├ <b>Доп информация</b>: <i>{elements_info}</i>\n\n<b>👁️ Возможные Люди(домашний телефон {phone_net_obl})</b>:\n├ Минск: {minsk_raen}\n├ Витебск: {vitebsk_raen}\n├ Гродно: {grodno_raen}\n├ Брест: {brest_raen}\n├ Гомель: {gomel_raen}\n├ Могилев: {mogilef_raen}\n\n 📧 E-mail: {text_email}\n👤 Возможные анкеты:\n├ 🏫 Образование:\n{element_school.strip()}\n├🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
+        else:
+            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<b>🔃 Чтобы узнать больше то нужно купить 🔑 Подписку</b>'
 
         await message.reply(text_osint, parse_mode='HTML', reply_markup=keyboard)
         if phone_not.startswith('7'):
@@ -1310,8 +1327,19 @@ async def user_name_over(message: Message, state: FSMContext):
 
 @router.message(F.text == '💼 Dos')
 async def ddos_start(message: Message, state: FSMContext):
-    await state.set_state(Ddoss.target)
-    await message.answer("Введите URL 🔎 жертвы 🌍💻 ")
+    db = SessionLocal()
+
+    # 1. Проверяем существующего пользователя
+    user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+    premium_by_us = user.premium
+
+    db.close()
+    if premium_by_us is True:
+        await state.set_state(Ddoss.target)
+        await message.answer("Введите URL 🔎 жертвы 🌍💻 ")
+    else:
+        await state.clear()
+        await message.answer("❌ У вас отсутствует 🔑 Подписка в боте")
 
 
 @router.message(Ddoss.target)
