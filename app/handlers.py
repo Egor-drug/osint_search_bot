@@ -11,7 +11,7 @@ from telethon.sessions import StringSession
 import os
 from telethon import events
 
-from config import ADMIN_ID, TOKEN
+from config import ADMIN_ID, TOKEN,api_id,api_hash,vk_token
 from database import SessionLocal, User, BroadCast
 from datetime import datetime
 from aiogram.enums import ChatMemberStatus
@@ -37,11 +37,11 @@ Currency = 'XTR'
 
 CHANEl_ID = '-1002939673303'
 ADMIN_ID = ADMIN_ID
-api_id = 20880015
 
-vk_session = vk_api.VkApi(token='737689247376892473768924da704827de77376737689241af781f61909ba6f55b57db5')
+
+vk_session = vk_api.VkApi(token=vk_token)
 vk = vk_session.get_api()
-api_hash = '1afaf973893798968502dfe925360345'
+
 
 headers = {
     "Referer": "https://www.google.com/"
@@ -283,157 +283,103 @@ async def menu(message: Message):
 @router.message(F.text == '💰 Пополнить')
 async def money_key(message: Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='🔑 Подписка',callback_data='subcribe')],
-        [InlineKeyboardButton(text='Поддержка бота 💰',callback_data='support_bot')]
+        [InlineKeyboardButton(text='🔑 Подписка ', callback_data='subscribe')],
+        [InlineKeyboardButton(text='🤝 Поддержка бота', callback_data='support_bot')]
     ])
-    await message.answer('🔃 Вот все наши предложения:',reply_markup=keyboard)
+    await message.answer('🔃 Выберите вариант:', reply_markup=keyboard)
 
-@router.callback_query(F.data == 'subcribe')
-async def premium_getting(callback:CallbackQuery):
-    prices = [LabeledPrice(label=Currency, amount=250)]
+
+@router.callback_query(F.data == 'subscribe')
+async def premium_getting(callback: CallbackQuery):
+    prices = [LabeledPrice(label="XTR", amount=250)]
+
     db = SessionLocal()
-    await callback.answer('')
-    # 1. Проверяем существующего пользователя
     user = db.query(User).filter(User.telegram_id == str(callback.from_user.id)).first()
-    if user.premium is True:
-        await callback.message.answer('✅ У вас уже есть 🔑 <b>Подписка</b>',parse_mode="HTML")
+
+    if user and user.premium:
+        await callback.answer('❌ У вас уже есть подписка!', show_alert=True)
+        db.close()
         return
+
     db.close()
+    await callback.answer('')
 
     await callback.message.answer_invoice(
-        title='Покупка 🔑 <b>Подписки</b> для бота',
-        description='Купить запросы для пробив бота 👁️',
+        title='🔑 Premium подписка',
+        description='• 50 запросов в месяц\n• Доступ к расширенному поиску\n• Приоритетная поддержка',
         prices=prices,
         provider_token='',
-        payload='channel_support',
-        currency=Currency,
-        reply_markup=payment,
-        parse_mode = "HTML"
+        payload='premium_subscription',
+        currency='XTR',
+        reply_markup=payment
     )
-
-
-@router.pre_checkout_query()
-async def prechekout_query(pre_checkout_query: PreCheckoutQuery):
-    await pre_checkout_query.answer(ok=True)
-
-
-@router.message(F.successful_payment)
-async def successful_payment(message: Message):
-    db = SessionLocal()
-
-    # 1. Проверяем существующего пользователя
-    user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
-    user.premium = True
-    user.queries = 50
-    db.commit()
-    db.close()
-    payment_sys = message.successful_payment
-
-
-
-    if payment_sys.currency == 'XTR':
-        stars_received = payment_sys.total_amount  # Количество полученных звёзд
-
-        # Отправляем подтверждение с эффектом
-        await message.answer(
-            f"✅ Вы получили Подписку 🔑 на месяц.\n"
-            
-            f"✅ **Получено:** {stars_received} звёзд ⭐\n"
-            f"👤 **От:** {message.from_user.full_name}\n"
-            f"🆔 **ID платежа:** `{payment_sys.telegram_payment_charge_id}`\n\n"
-            f"💝 Ваша поддержка очень важна для развития бота!\n"
-            f"Спасибо, что вы с нами! ✨",
-            message_effect_id="5104841245755180586"
-        )
-
-
-        # Отправляем дополнительное сообщение (опционально)
-        await message.answer(
-            "💎 **Спасибо еще раз!**\n\n"
-            "Если у вас есть вопросы или предложения,\n"
-            "используйте команду /help или напишите нам!"
-        )
-
-    else:
-        # Если платеж не в звёздах (на всякий случай)
-        await message.answer(
-            f"✅ Платёж получен!\n"
-            f"Сумма: {payment_sys.total_amount} {payment.currency}\n"
-            f"ID: {payment_sys.telegram_payment_charge_id}"
-        )
 
 
 @router.callback_query(F.data == 'support_bot')
-async def support_to_bot(callback:CallbackQuery):
-
+async def support_to_bot(callback: CallbackQuery):
     prices = [LabeledPrice(label="XTR", amount=20)]
     await callback.answer('')
+
     await callback.message.answer_invoice(
-        title='Поддержка бота 💰',
-        description='Поддрежка звездами ⭐',
+        title='🤝 Поддержка бота',
+        description='Поддержите разработку бота звездами ⭐',
         prices=prices,
         provider_token='',
-        payload='channel_support',
-        currency=Currency,
+        payload='bot_support',
+        currency='XTR',
         reply_markup=payment,
     )
 
 
 @router.pre_checkout_query()
-async def prechekout_query(pre_checkout_query: PreCheckoutQuery):
+async def process_pre_checkout_query(pre_checkout_query: PreCheckoutQuery):
     await pre_checkout_query.answer(ok=True)
 
 
+# ✅ ЕДИНСТВЕННЫЙ обработчик successful_payment
 @router.message(F.successful_payment)
-async def successful_payment(message: Message):
-    payment_sys = message.successful_payment
+async def process_successful_payment(message: Message):
+    payment_system = message.successful_payment
+    payload = payment.invoice_payload  # Получаем payload
+    user_id = str(message.from_user.id)
 
+    db = SessionLocal()
+    user = db.query(User).filter(User.telegram_id == user_id).first()
 
-    # Проверяем, что это действительно звёзды (XTR)
-    if payment_sys.currency == 'XTR':
-        stars_received = payment_sys.total_amount  # Количество полученных звёзд
+    if not user:
+        # Создаем пользователя если не существует
+        user = User(telegram_id=user_id, name=message.from_user.full_name)
+        db.add(user)
+        db.commit()
 
-        # Отправляем подтверждение с эффектом
+    # Обрабатываем разные типы платежей
+    if payload == 'premium_subscription':
+        # Покупка подписки
+        user.premium = True
+        user.queries = (user.queries or 0) + 50
+        db.commit()
+
         await message.answer(
-            f"🎉 **Спасибо за поддержку!** 🎉\n\n"
-            f"✅ **Получено:** {stars_received} звёзд ⭐\n"
-            f"👤 **От:** {message.from_user.full_name}\n"
-            f"🆔 **ID платежа:** `{payment_sys.telegram_payment_charge_id}`\n\n"
-            f"💝 Ваша поддержка очень важна для развития бота!\n"
-            f"Спасибо, что вы с нами! ✨",
+            f"✅ **Premium 🔑одписка активирована!**\n\n"
+            f"⭐ Получено: {payment.total_amount} звёзд\n"
+            f"📊 Добавлено запросов: 50\n"
+            f"💎 Срок действия: 30 дней\n\n"
+            f"Спасибо за покупку! 🎉",
             message_effect_id="5104841245755180586"
         )
 
-        # Здесь можно добавить логику:
-        # 1. Сохранить в базу данных
-        # 2. Начислить бонусы/привилегии
-        # 3. Отправить уведомление админу
-        # 4. Обновить статистику
-
-        # Пример сохранения в БД (если есть)
-        # await save_payment_to_db(
-        #     user_id=user_id,
-        #     amount=stars_received,
-        #     currency='XTR',
-        #     payment_id=payment.telegram_payment_charge_id,
-        #     date=message.date
-        # )
-
-        # Отправляем дополнительное сообщение (опционально)
+    elif payload == 'bot_support':
+        # Поддержка бота
+        # Здесь можно добавить запись в отдельную таблицу донатов
         await message.answer(
-            "💎 **Спасибо еще раз!**\n\n"
-            "Если у вас есть вопросы или предложения,\n"
-            "используйте команду /help или напишите нам!"
+            f"🎉 **Спасибо за поддержку!** 🎉\n\n"
+            f"⭐ Получено: {payment.total_amount} звёзд\n"
+            f"👤 От: {message.from_user.full_name}\n\n"
+            f"💝 Ваша поддержка помогает боту развиваться!",
+            message_effect_id="5104841245755180586"
         )
 
-    else:
-        # Если платеж не в звёздах (на всякий случай)
-        await message.answer(
-            f"✅ Платёж получен!\n"
-            f"Сумма: {payment_sys.total_amount} {payment.currency}\n"
-            f"ID: {payment_sys.telegram_payment_charge_id}"
-        )
-
+    db.close()
 
 
 
@@ -569,7 +515,7 @@ async def contact_share(message: Message):
        ├ Существует: {possible2}
        ├ 🎞️ Оператор: {carrier2}
        ├ <b>Основные</b>:
-       ├ 📛 Имя: {first_name}
+       ├ 🏷️Имя: {first_name}
        ├ Сайт :{text_from_url}
        ├ Фамилия: {last_name}
        ├ Mail.ru:{text_url}
@@ -1704,7 +1650,7 @@ async def vk_searching(message: Message, state: FSMContext):
 
         # Пол
         sex_map = {1: 'Женский', 2: 'Мужской', 0: 'Не указан'}
-        sex = sex_map.get(get_field('sex', 0), 'Не указан')
+        sex = sex_map.get(get_field('sex', '0'), 'Не указан')
 
         # Онлайн статус
         online_status = '✅ Онлайн' if get_field('online') else '❌ Оффлайн'
@@ -1845,7 +1791,7 @@ async def vk_searching(message: Message, state: FSMContext):
         # Отправляем сообщение
         await message.answer(response_text, parse_mode='HTML', reply_markup=keyboard)
 
-    except Exception as e:
+    except Exception:
         await message.answer(
             f"❌ Ошибка при поиске\n"
             f"Проверьте правильность ID и попробуйте снова."
