@@ -406,7 +406,7 @@ async def snoser_starting(message: Message, state: FSMContext):
     premium_user = user.premium
     db.close()
     if premium_user is True:
-        await message.answer('Выберите пункт для сноса', reply_markup=keyboard)
+        await message.answer('Выберите пункт для sn0singa', reply_markup=keyboard)
     else:
         await message.answer('❌ У вас нет 🔑Подписки в боте')
 
@@ -534,62 +534,118 @@ async def email_osint(message: Message, state: FSMContext):
 
 @router.message(Email.email)
 async def email_ok(message: Message, state: FSMContext):
-    await message.answer("🔎Идет поиск информации...")
+    await message.answer("🔎 Идет поиск информации...")
     email = message.text.strip()
     username = email.split('@')[0]
 
-    if "@mail.ru" in email:
-        url = f'https://xn--80ajiff1g.com/email/{email}#result'
-        response = requests.get(url, headers=headers)
-        html_content = response.content
+    mail_ru_domains = ['@mail.ru', '@list.ru', '@bk.ru', '@gmail.ru']
 
-        soup = BeautifulSoup(html_content, 'html.parser')
-        email_information = soup.find(class_='response-data-col-1 response-email')
+    if any(domain in email for domain in mail_ru_domains):
+        url = f'https://getscam.com/email/{email}'
 
-        if email_information is None:
-            await message.answer('Извините ничего 🔎 не найдено ', reply_markup=start_mes)
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            await message.answer(f"❌ Ошибка при запросе: {str(e)}")
             await state.clear()
+            return
 
-        else:
+        soup = BeautifulSoup(response.content, 'html.parser')
 
-            text_email = email_information.text.strip()
+        # Находим блок с информацией
+        info_block = soup.find('div', class_='pt-[16px] border-t border-t-gray-300')
 
-            tik_tok = f'https://tiktok.com/search?q={email}'
-            porn_hub = f'https://opornhub.org/user/search?username={username}'
-            facebook = f'https://facebook.com/search/top/?q={email}'
-            youtube = f'https://youtube.com/results?search_query={email}'
-            instagram = f'https://instagram.com/{username}'
-            tg = f'https://t.me/{username}'
-            vk = f'https://vk.com/search?c%5Bname%5D=1&c%5Bsection%5D=people&c%5Bq%5D={username}'
-            roblox = f'https://web.roblox.com/search/users?keyword={username}'
-            twiter = f'https://x.com/search?q={username}&f=user'
+        try:
+            # Email
+            email_tag = info_block.find('span', string=lambda x: x and '@' in x)
+            found_email = email_tag.text.strip() if email_tag else email
 
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text='Youtube', url=youtube),
-                 InlineKeyboardButton(text='Facebook', url=facebook)],
-                [InlineKeyboardButton(text='TikTok', url=tik_tok), InlineKeyboardButton(text='Vk', url=vk)],
-                [InlineKeyboardButton(text='Telegram', url=tg), InlineKeyboardButton(text='Instagram', url=instagram)],
-                [InlineKeyboardButton(text='Roblox', url=roblox), InlineKeyboardButton(text='Twitter', url=twiter)],
-                [InlineKeyboardButton(text='Сайт', url=porn_hub)]
-            ])
+            # Город
+            city_tag = info_block.find('a', href=lambda x: x and 'find-city' in x)
+            city = city_tag.text.strip() if city_tag else 'Не указан'
 
-            pattern = r'Почта(?P<email>[^И]+)Интересовались(?P<people>\d+)\sчеловекИмя(?P<name>[^С]*)Сведения[^Т]*Телефоны(?P<phone>[^M]+)Mail\.ru ID почты(?P<id>\w+)'
+            # Домен
+            domain_tag = info_block.find_all('span')
+            domain = 'mail.ru'  # По умолчанию
+            for span in domain_tag:
+                if span.text.strip() in ['mail.ru', 'inbox.ru', 'list.ru', 'bk.ru', 'gmail.ru']:
+                    domain = span.text.strip()
+                    break
 
-            match = re.search(pattern, text_email)
-            if match:
-                data = match.groupdict()
+            # Телефон
+            phone_tag = info_block.find('span', string=lambda x: x and '+7' in x)
+            phone = phone_tag.text.strip() if phone_tag else 'Скрыт'
 
-                email_sea = data.get('people', '')
-                email_name = data.get('name', '')
-                telephone = data.get('phone', '')
-                email_id = data.get('id', '')
+            # IP адрес
+            ip_tag = info_block.find('a', href=lambda x: x and '/ip/' in x)
+            ip = ip_tag.text.strip() if ip_tag else 'Не указан'
 
-                await message.answer(
-                    f'<b>Email пробит:</b>\n\nОсновная информация:\n├ ✅ Email: {email}\n├ 👁 Сколько искали: {email_sea}\n\n├ Номер 📲: {telephone}\n├ ID : {email_id}\n├ 💬 Email_name : {email_name}\n\n├ <b>Tiktok</b>: {tik_tok}',
-                    parse_mode='HTML', reply_markup=keyboard)
-                await state.clear()
+            # Страна
+            country_tag = info_block.find_all('span')
+            country = 'Россия'  # По умолчанию
+            for span in country_tag:
+                if span.text.strip() in ['Россия', 'Украина', 'Беларусь', 'Казахстан']:
+                    country = span.text.strip()
+                    break
+
+            # Язык устройства
+            lang_tag = info_block.find_all('span')
+            language = 'RU'  # По умолчанию
+            for span in lang_tag:
+                if span.text.strip() in ['RU', 'EN', 'UA']:
+                    language = span.text.strip()
+                    break
+
+            # Состояние
+            status_tag = info_block.find_all('span')
+            status = 'Обслуживается'  # По умолчанию
+            for span in status_tag:
+                if span.text.strip() in ['Обслуживается', 'Заблокирован', 'Неактивен']:
+                    status = span.text.strip()
+                    break
+
+            # Формируем сообщение
+            result_message = (
+                f"<b>📧 Информация по email: {found_email}</b>\n\n"
+                f"<b>━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+                f"<b>🏢 Город:</b> {city}\n"
+                f"<b>🌐 Домен:</b> {domain}\n"
+                f"<b>👥 Социальные сети:</b> Скрыт\n"
+                f"<b>📱 Телефон:</b> {phone}\n\n"
+                f"<b>🏠 Адрес:</b> Скрыт\n"
+                
+                f"<b>🖥️ IP адрес:</b> <code>{ip}</code>\n"
+                f"<b>🌍 Страна:</b> {country}\n\n"
+                f"<b>🔤 Язык устройства:</b> {language}\n"
+                f"<b>⚡ Состояние:</b> {status}\n\n"
+                f"<b>━━━━━━━━━━━━━━━━━━━━━</b>\n"
+            )
+
+        except Exception as e:
+            await message.answer(f"❌ Ошибка при парсинге: {str(e)}")
+            await state.clear()
+            return
+
+        # Клавиатура с соцсетями
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='📺 YouTube', url=f'https://www.youtube.com/results?search_query={email}'),
+             InlineKeyboardButton(text='📘 Facebook', url=f'https://www.facebook.com/search/people/?q={email}')],
+            [InlineKeyboardButton(text='🎵 TikTok', url=f'https://www.tiktok.com/search?q={email}'),
+             InlineKeyboardButton(text='📱 VK', url=f'https://vk.com/search?c%5Bq%5D={username}&c%5Bsection%5D=people')],
+            [InlineKeyboardButton(text='✈️ Telegram', url=f'https://t.me/{username}'),
+             InlineKeyboardButton(text='📸 Instagram', url=f'https://www.instagram.com/{username}')],
+            [InlineKeyboardButton(text='🎮 Roblox', url=f'https://www.roblox.com/search/users?keyword={username}'),
+             InlineKeyboardButton(text='🐦 Twitter', url=f'https://twitter.com/search?q={username}&f=user')],
+        ])
+
+        await message.answer(result_message, parse_mode='HTML', reply_markup=keyboard)
+        await state.clear()
+
     else:
-        await message.answer('Этот email не поддерживается 📝 ', reply_markup=start_mes)
+        await message.answer(
+            '❌ Этот email не поддерживается. Поддерживаются только домены: @mail.ru, @inbox.ru, @list.ru, @bk.ru, @gmail.ru',
+            reply_markup=start_mes)
         await state.clear()
 
 
@@ -1253,8 +1309,8 @@ async def user_name_over(message: Message, state: FSMContext):
          InlineKeyboardButton(text='  Steam', url=f'https://steamcommunity.com/groups/{username}')],
         [InlineKeyboardButton(text=' Minecraft', url=f'https://minecraftuuid.com/?search={username}'),
          InlineKeyboardButton(text='  Xbox', url=f'https://xboxgamertag.com/search/{username}')],
-        [InlineKeyboardButton(text='🔵 Telegram', url=f'https://t.me/{username}')],
-        [InlineKeyboardButton(text='🔴  Youtube', url=f'https://www.youtube.com/@{username}')],
+        [InlineKeyboardButton(text='🔵 Telegram', url=f'https://t.me/{username}',style='primary',icon_custom_emoji_id='5436302963117137450')],
+        [InlineKeyboardButton(text='🔴  Youtube', url=f'https://www.youtube.com/@{username}',style='danger',icon_custom_emoji_id='5359523920120651432')],
         [InlineKeyboardButton(text=' Spotify', url=f'https://open.spotify.com/user/{username}'),
          InlineKeyboardButton(text=' Replit', url=f'https://replit.com/@{username}')],
         [InlineKeyboardButton(text='  Rumble', url=f'https://rumble.com/user/{username}'),
@@ -1350,7 +1406,7 @@ async def profile(message: Message):
         premium_by_us = '❌'
 
     await message.reply(
-        f'ℹ️ Вся необходимая информация о вашем профиле\n\n🏷️ <b>Имя:</b> <a href="tg://copy?text=ddddd">{message.from_user.full_name}</a>\n🔗<b>Username:</b> @{message.from_user.username}\n\n🆔 <b>Мой ID:</b> <a href="tg://copy?text=ddddddd">6947365047</a>\n📆 <b>Регистрация:</b> <a href="tg://copy?text=fdddd">{user_register_at}</a>\n🔃 <b>TG Премиум:</b> {message.from_user.is_premium}\n🧮 <b>Купленные запросы:</b> <a href="tg://copy?text=dddd">{queries_user}</a>\n\n🔑 <b>Подписка:</b> {premium_by_us}\n🗣️ <b>Язык:</b> <b>{message.from_user.language_code}</b>\n\n💰 Твой баланс: <a href="tg://copy?text=0.00">0.00 RUB</a>\n',
+        f'ℹ️ Вся необходимая информация о вашем профиле\n\n🏷️ <b>Имя:</b> <a href="tg://copy?text=ddddd">{message.from_user.full_name}</a>\n🔗<b>Username:</b> @{message.from_user.username}\n\n🆔 <b>Мой ID:</b> <a href="tg://copy?text=ddddddd">{message.from_user.id}</a>\n📆 <b>Регистрация:</b> <a href="tg://copy?text=fdddd">{user_register_at}</a>\n🔃 <b>TG Премиум:</b> {message.from_user.is_premium}\n🧮 <b>Купленные запросы:</b> <a href="tg://copy?text=dddd">{queries_user}</a>\n\n🔑 <b>Подписка:</b> {premium_by_us}\n🗣️ <b>Язык:</b> <b>{message.from_user.language_code}</b>\n\n💰 Твой баланс: <a href="tg://copy?text=0.00">0.00 RUB</a>\n',
         reply_markup=json_user,parse_mode="HTML")
 
 
