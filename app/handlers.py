@@ -389,7 +389,7 @@ async def stats(message: Message):
     total_users = db.query(User).count()
     active_users = db.query(User).filter(User.active == True).count()
     db.close()
-    text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/sher_search_bot'
+    text = f'📊 Статистика:\n\n├ Всего 👀 пользователей: {total_users}\n├ Активных 🎮 пользователей : {active_users}\n└ Реферальная ссылка 📎 : t.me/sherlock_dr_bot'
     await message.answer(f'{text}')
 
 
