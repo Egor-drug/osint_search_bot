@@ -10,7 +10,7 @@ import re
 from telethon.sessions import StringSession
 import os
 from telethon import events
-
+import aiohttp
 from config import ADMIN_ID, TOKEN,api_id,api_hash,vk_token
 from database import SessionLocal, User, BroadCast
 from datetime import datetime
@@ -437,94 +437,175 @@ async def download(callback: CallbackQuery):
 
 @router.message(F.content_type == ContentType.CONTACT)
 async def contact_share(message: Message):
-    # if await check_member(CHANEl_ID, message):
 
-    await message.answer('Идет поиск 🔎 информации...')
+
+    # Отправляем статус о начале поиска
+    status_msg = await message.answer('🔍 Идет поиск информации...')
     await asyncio.sleep(1.5)
+    await status_msg.delete()
 
-    contact = message.contact
-    phone_num = contact.phone_number.strip()
+    try:
+        # Получаем данные контакта
+        contact = message.contact
+        phone_raw = contact.phone_number.strip()
 
-    phone_number = phonenumbers.parse(phone_num)
-    possible2 = phonenumbers.is_possible_number(phone_number)
-    carrier2 = carrier.name_for_number(phone_number, 'ru')
+        # Парсим номер телефона
+        phone_parsed = phonenumbers.parse(phone_raw)
 
-    geocoder2 = geocoder.description_for_number(phone_number, "ru")
-    timezone2 = timezone.time_zones_for_number(phone_number)
-    valid2 = phonenumbers.is_valid_number(phone_number)
+        # Получаем базовую информацию о номере
+        phone_info = {
+            'raw': phone_raw,
+            'clean': phone_raw.replace('+', '').replace(' ', ''),
+            'viber': phone_raw.replace(' ', ''),
+            'is_possible': phonenumbers.is_possible_number(phone_parsed),
+            'is_valid': phonenumbers.is_valid_number(phone_parsed),
+            'carrier': carrier.name_for_number(phone_parsed, 'ru'),
+            'region': geocoder.description_for_number(phone_parsed, "ru"),
+            'timezone': timezone.time_zones_for_number(phone_parsed),
+            'first_name': contact.first_name,
+            'last_name': contact.last_name or "",
+            'user_id': contact.user_id
+        }
 
-    # Извлекаем данные
-    phone_number = contact.phone_number
-    first_name = contact.first_name
-    last_name = contact.last_name if contact.last_name else ""
-    user_id = contact.user_id
-    viber_phone = phone_number.replace(' ', '')
-    phone_not = phone_number.replace('+', '')
-    phone = phone_not.replace(' ', '')
-    fl_name = f'{first_name}{last_name}'
-    name_fio = fl_name.replace(' ', '')
+        # Формируем ФИО для поиска
+        full_name = f"{phone_info['first_name']}{phone_info['last_name']}".replace(' ', '')
 
-    url5 = f'https://callapp.com/search-result/{phone_number}'
+        # Собираем ссылки для быстрого доступа
+        urls = {
+            'telegram': f'https://t.me/{phone_info["raw"]}',
+            'whatsapp': f'https://wa.me/{phone_info["raw"]}',
+            'viber': f'https://viber.click/{phone_info["viber"]}',
+            'callapp': f'https://callapp.com/search-result/{phone_info["raw"]}',
+            'mailru': f'https://my.mail.ru/my/search_people?&name={full_name}',
+            'site': f'https://avtomusic-nn.ru/{phone_info["clean"]}',
+            'getscam': f'https://getscam.com/{phone_info["clean"]}'
+        }
 
-    response = requests.get(url5, headers=headers)
+        # Асинхронно выполняем все запросы
+        tasks = [
+            fetch_url(urls['callapp']),
+            fetch_url(urls['mailru']),
+            fetch_url(urls['site']),
+            fetch_url(urls['getscam'])
+        ]
 
-    html_text = response.content
-    soup = BeautifulSoup(html_text, 'html.parser')
-    text_name = soup.find(class_='number')
-    text_fraer = text_name.text.replace(" ", "").strip()
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    tg_phone = f'https://t.me/{phone_number}'
-    wt_phone = f'https://wa.me/{phone_number}'
-    url = f'https://avtomusic-nn.ru/{phone}'
-    url1 = f'https://my.mail.ru/my/search_people?&name={name_fio}'
-    text_mail = requests.get(url1, headers=headers)
-    text_html1 = text_mail.content
-    soupec = BeautifulSoup(text_html1, 'html.parser')
+        # Парсим результаты
+        callapp_data = parse_callapp(results[0]) if not isinstance(results[0], Exception) else "Не найдено"
+        mailru_data = parse_mailru(results[1]) if not isinstance(results[1], Exception) else "Не найдено"
+        site_data = parse_site(results[2]) if not isinstance(results[2], Exception) else "Не найдено"
+        ip_address = parse_ip(results[3]) if not isinstance(results[3], Exception) else "Не определен"
 
-    infor = soupec.find(class_='b-search__users__list')
+        # Создаем клавиатуру для быстрых действий
+        keyboards_start = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text='📱 WhatsApp', url=urls['whatsapp']),
+                InlineKeyboardButton(text='📞 Viber', url=urls['viber'])
+            ],
+            [
+                InlineKeyboardButton(text='✈️ Telegram', url=urls['telegram']),
+                InlineKeyboardButton(text='🔍 CallApp', url=urls['callapp'])
+            ]
+        ])
 
-    text_url = infor.text
+        # Формируем красивый ответ
+        response = format_response(phone_info, ip_address, mailru_data, site_data, callapp_data)
 
-    text_style = requests.get(url, headers=headers)
-    text_html = text_style.content
+        await message.answer(response, parse_mode='HTML', reply_markup=keyboards_start, disable_web_page_preview=True)
 
-    soup = BeautifulSoup(text_html, 'html.parser')
+    except Exception as e:
+        await message.answer(f"❌ Произошла ошибка при обработке контакта: {str(e)}")
 
-    infa = soup.find(class_='jumbotron')
 
-    text_from_url = infa.text.strip()
+# Вспомогательные функции
+async def fetch_url(url: str, timeout: int = 10):
+    """Асинхронно получает содержимое URL"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, timeout=timeout) as response:
+                return await response.text()
+    except:
+        return None
 
-    if text_url is None:
-        text_url = "Запрос не дал результат"
-    else:
-        text_url = text_url
 
-    keyboards_start = InlineKeyboardMarkup(inline_keyboard=[
+def parse_callapp(html_content):
+    """Парсит данные с CallApp"""
+    if not html_content:
+        return "Не найдено"
+    soup = BeautifulSoup(html_content, 'html.parser')
+    number_elem = soup.find(class_='number')
+    return number_elem.text.replace(" ", "").strip() if number_elem else "Не найдено"
 
-        [InlineKeyboardButton(text='🟢WhatsApp', url=wt_phone),
-         InlineKeyboardButton(text='🟣Viber', url=f'https://viber.click/{viber_phone}')],
-        [InlineKeyboardButton(text='🔵Telegram', url=tg_phone)]
-    ])
 
-    response = f"""
-       📞 Получен контакт:
-       ├ 📲 Номер: {phone_number}
-       ├ Регион: {timezone2}
-       ├ Страна: {geocoder2}
-       ├ Валид: {valid2}
-       ├ Существует: {possible2}
-       ├ 🎞️ Оператор: {carrier2}
-       ├ <b>Основные</b>:
-       ├ 🏷️Имя: {first_name}
-       ├ Сайт :{text_from_url}
-       ├ Фамилия: {last_name}
-       ├ Mail.ru:{text_url}
-       ├ Рейтинт ⭐:{text_fraer}
-       └ ID пользователя: {user_id}
+def parse_mailru(html_content):
+    """Парсит данные с Mail.ru"""
+    if not html_content:
+        return "Не найдено"
+    soup = BeautifulSoup(html_content, 'html.parser')
+    users_list = soup.find(class_='b-search__users__list')
+    return users_list.text if users_list else "Не найдено"
 
-        """
-    await message.answer(f'{response}', parse_mode='HTML', reply_markup=keyboards_start)
 
+def parse_site(html_content):
+    """Парсит данные с сайта"""
+    if not html_content:
+        return "Не найдено"
+    soup = BeautifulSoup(html_content, 'html.parser')
+    jumbotron = soup.find(class_='jumbotron')
+    return jumbotron.text.strip() if jumbotron else "Не найдено"
+
+
+def parse_ip(html_content):
+    """Парсит IP-адрес"""
+    if not html_content:
+        return "Не определен"
+
+    soup = BeautifulSoup(html_content, 'html.parser')
+    ip_section = soup.find('div', class_='pt-[16px] border-t border-t-gray-300')
+
+    if not ip_section:
+        return "Не определен"
+
+    ip_tag = ip_section.find('p', string=' IP адрес ')
+    if ip_tag:
+        ip_link = ip_tag.find_next('span').find('a')
+        if ip_link:
+            return ip_link.text
+
+    return "Не определен"
+
+
+def format_response(info, ip, mailru, site, callapp):
+    """Форматирует ответ красивым образом"""
+    return f"""
+╔══════════════════════════
+║ 📱 <b>ИНФОРМАЦИЯ О КОНТАКТЕ</b>
+╠══════════════════════════
+║
+║ 👤 <b>Личные данные:</b>
+║ ├─ Имя: {info['first_name']}
+║ ├─ Фамилия: {info['last_name']}
+║ └─ ID: <code>{info['user_id']}</code>
+║
+║ 📞 <b>Номер телефона:</b>
+║ ├─ Номер: <code>{info['raw']}</code>
+║ ├─ Валидный: {'✅ Да' if info['is_valid'] else '❌ Нет'}
+║ ├─ Возможный: {'✅ Да' if info['is_possible'] else '❌ Нет'}
+║ └─ Оператор: {info['carrier']}
+║
+║ 🌍 <b>Геоданные:</b>
+║ ├─ Регион: {info['region'] or 'Не определен'}
+║ ├─ Страна: {info['timezone'][0] if info['timezone'] else 'Не определена'}
+║ └─ IP адрес: <code>{ip}</code>
+║
+║ 🔍 <b>Дополнительная информация:</b>
+║ ├─ CallApp: {callapp}
+║ ├─ Mail.ru: {mailru[:50]}{'...' if len(mailru) > 50 else ''}
+║ └─ Сайт: {site[:50]}{'...' if len(site) > 50 else ''}
+║
+╚══════════════════════════
+    """
 
 @router.message(F.text == '📧 E-mail')
 async def email_osint(message: Message, state: FSMContext):
@@ -657,433 +738,355 @@ async def tele_osint(message: Message, state: FSMContext):
 
 @router.message(TeleOsint.telephone)
 async def tele_infa(message: Message, state: FSMContext):
-    bot_message = await message.answer("Идет поиск 🔎 информации...")
+    # Начало поиска
+    bot_message = await message.answer("🔍 Идет поиск информации...")
     await state.update_data(telephone=message.text)
 
+    # Проверка премиум статуса
     db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+        premium_by_us = user.premium if user else False
+    finally:
+        db.close()
 
-    # 1. Проверяем существующего пользователя
-    user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
-    premium_by_us = user.premium
+    # Очистка номера телефона
+    phone = message.text.replace('-', '').replace(' ', '').replace('+', '')
 
-    db.close()
+    # Валидация
+    if not phone or len(phone) < 10:
+        await message.answer("🤖 Введите корректный номер телефона 📱")
+        await state.clear()
+        return
 
-    phone = message.text.replace('-','')
-    final_result_nameing = ''
-    phone_valid = phone.replace(' ', '')
-    phone_not = phone_valid.replace('+', '')
-    phone_number = phonenumbers.parse(f'+{phone_not}')
-    geocoder1 = geocoder.description_for_number(phone_number, "ru")
-    carrier1 = carrier.name_for_number(phone_number, 'ru')
-    date_of_birthday = "Не найдено"
-    element_school = 'Информация не найдена'
-    elements_info= 'Не найдено'
-    elem_vk_id = 'Не найдено'
-    minsk_raen = ''
-    vitebsk_raen = ''
-    grodno_raen = ''
-    brest_raen = ''
-    gomel_raen = ''
-    mogilef_raen = ''
-    result = phone_not[-7:]
+    # Парсинг номера
+    try:
+        phone_number = phonenumbers.parse(f'+{phone}')
+        geocoder1 = geocoder.description_for_number(phone_number, "ru")
+        carrier1 = carrier.name_for_number(phone_number, 'ru')
+        timezone1 = timezone.time_zones_for_number(phone_number)
+        valid = 'Да' if phonenumbers.is_valid_number(phone_number) else 'Нет'
+        possible = phonenumbers.is_possible_number(phone_number)
+    except:
+        await message.answer("🤖 Не удалось распознать номер")
+        await state.clear()
+        return
+
+    # Инициализация переменных
+    informatio_fio = 'Не найдено'
     informatio_fio_mts = 'Информация не найдена'
     telephone_from_mts = 'Информация не найдена'
-    link = f'https://spravochnik109.link/byelarus/mobilnaya-svyaz/mTS-mobilnyj-opyerator/mTS-mobilnyye-tyelyefony?phone={result}&streetSubStr=1&page=1&sort=1#menu'
+    sure_name = 'Информация не найдена'
+    date_of_birthday = "Не найдено"
+    elements_info = 'Не найдено'
+    element_school = 'Информация не найдена'
+    elem_vk_id = 'Не найдено'
 
+    # Данные по регионам
+    region_data = {
+        'Минск': 'Не найдено',
+        'Витебск': 'Не найдено',
+        'Гродно': 'Не найдено',
+        'Брест': 'Не найдено',
+        'Гомель': 'Не найдено',
+        'Могилев': 'Не найдено'
+    }
+
+    # Поиск по справочнику
+    try:
+        link_sparochnik = f'http://i.spravkaru.net/results2.php?page=1&sorts=phone&city_id=352&phone={phone[-7:]}&phonecons=full&lastname=&initials=&lastnamecons=part'
+        response = requests.get(link_sparochnik, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        text_table = soup.find(class_='%s')
+        if text_table:
+            informatio_fio = text_table.text.replace('-', '').replace(phone[-7:], '')
+    except:
+        pass
+
+    # Поиск по МТС
     if carrier1 == 'МТС':
+        try:
+            link = f'https://spravochnik109.link/byelarus/mobilnaya-svyaz/mTS-mobilnyj-opyerator/mTS-mobilnyye-tyelyefony?phone={phone[-7:]}&streetSubStr=1&page=1&sort=1#menu'
+            response = requests.get(link, headers=headers, timeout=10)
+            soup = BeautifulSoup(response.content, 'html.parser')
 
-        response1 = requests.get(link, headers=headers)
-
-        html_txt = response1.content
-        soup = BeautifulSoup(html_txt, 'html.parser')
-
-        text_fio_dam = soup.find('td', class_='fio')
-
-        if text_fio_dam is None:
-            informatio_fio_mts = 'Информация не найдена'
-        else:
-            informatio_fio_mts = text_fio_dam.text
-            telephone_from_mts = soup.find('td', class_='adr')
-            telephone_from_mts = telephone_from_mts.text.strip()
-
-    link_sparochnik = f'http://i.spravkaru.net/results2.php?page=1&sorts=phone&city_id=352&phone={result}&phonecons=full&lastname=&initials=&lastnamecons=part'
-
-    response_answer = requests.get(link_sparochnik, headers=headers)
-
-    html_txt_spravochnik = response_answer.content
-    soup = BeautifulSoup(html_txt_spravochnik, 'html.parser')
-
-    text_table = soup.find(class_='%s')
-
-    if text_table is None:
-        informatio_fio = 'Не найдено'
-
-    else:
-        informatio_fio = text_table.text
-
-    informatio_fio = informatio_fio.replace('-', '').replace(f'{result}', '')
-
-    link = f'https://spravochnik109.link/byelarus/mobilnaya-svyaz/vyelkom-mobilnyj-opyerator/vyelkom-mobilnyye-tyelyefony?phone=%2B{phone_not}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#google_vignette'
-
-    response = requests.get(link, headers=headers)
-
-    html_txt = response.content
-    soup = BeautifulSoup(html_txt, 'html.parser')
-    telephone_txt = soup.find('td', class_='adr')
-
-    if telephone_txt is None:
-        telephone_txt = ''
-
-    else:
-        telephone_txt = telephone_txt.text
-
-    text_fio = soup.find(class_='res')
-
-    urk_rfpoisk = ''
-    url_linked = ''
-
-    if text_fio is None:
-        sure_name = 'Информация не найдена'
-
-    else:
-        fio_name = text_fio.text
-        fio_text = fio_name.replace("Телефоны", "").strip()
-        name_user = re.sub(r'[^\w\s]+|[\d]+', r'', fio_text)
-
-        phone_net_obl = phone[-6:].replace('+','').replace(' ','')
-        link3 = f'https://spravochnik109.link/byelarus/bryesTSkaya-oblast/oblastnoj-tsyentr/bryest?phone={phone_net_obl}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-        link1 = f'https://spravochnik109.link/byelarus/vityebskaya-oblast/oblastnoj-tsyentr/vityebsk?phone={phone_net_obl}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-        link = f'https://spravochnik109.link/byelarus/minskaya-oblast/oblastnoj-tsyentr/minsk?phone=%2B{phone}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-        link2 = f'https://spravochnik109.link/byelarus/grodnyenskaya-oblast/oblastnoj-tsyentr/grodno?phone={phone_net_obl}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-        link4 = f'https://spravochnik109.link/byelarus/gomyelskaya-oblast/oblastnoj-tsyentr/gomyel?phone={phone_net_obl}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-        link5 = f'https://spravochnik109.link/byelarus/mogilyevskaya-oblast/oblastnoj-tsyentr/mogilyev?phone={phone_net_obl}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
-
-        response = requests.get(link, headers=headers)
-        html_content = response.content
-        soup = BeautifulSoup(html_content, 'html.parser')
-
-        # Поиск элементов
-        text = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text is None:
-            minsk_raen = 'Не найдено'
-        else:
-            text_adr = soup.find('td', class_='adr')
-
-            minsk_raen = f'<a href="tg://copy?text=">{text.text.strip()}</a> Адрес: {text_adr.text}'
-
-        response1 = requests.get(link1, headers=headers)
-        html_content1 = response1.content
-        soup = BeautifulSoup(html_content1, 'html.parser')
-
-        # Поиск элементов
-        text1 = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text1 is None:
-            vitebsk_raen = 'Не найдено'
-        else:
-            text_adr1 = soup.find('td', class_='adr')
-
-            vitebsk_raen = f'<a href="tg://copy?text=">{text1.text.strip()}</a> Адрес: {text_adr1.text}'
-
-        response2 = requests.get(link2, headers=headers)
-        html_content2 = response2.content
-        soup = BeautifulSoup(html_content2, 'html.parser')
-
-        # Поиск элементов
-        text2 = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text2 is None:
-            grodno_raen = 'Не найдено'
-        else:
-            text_adr2 = soup.find('td', class_='adr')
-
-            grodno_raen = f'<a href="tg://copy?text=">{text2.text.strip()}</a> Адрес: {text_adr2.text}'
-
-        response3 = requests.get(link3, headers=headers)
-        html_content3 = response3.content
-        soup = BeautifulSoup(html_content3, 'html.parser')
-
-        # Поиск элементов
-        text3 = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text3 is None:
-            brest_raen = 'Не найдено'
-        else:
-            text_adr3 = soup.find('td', class_='adr')
-
-            brest_raen = f'<a href="tg://copy?text=">{text3.text.strip()}</a> Адрес: {text_adr3.text}'
-
-        response4 = requests.get(link4, headers=headers)
-        html_content4 = response4.content
-        soup = BeautifulSoup(html_content4, 'html.parser')
-
-        # Поиск элементов
-        text4 = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text4 is None:
-            gomel_raen ='Не найдено'
-        else:
-            text_adr4 = soup.find('td', class_='adr')
-
-            gomel_raen = f'<a href="tg://copy?text=">{text4.text.strip()}</a> Адрес: {text_adr4.text}'
-
-        response5 = requests.get(link5, headers=headers)
-        html_content5 = response5.content
-        soup = BeautifulSoup(html_content5, 'html.parser')
-
-        # Поиск элементов
-        text5 = soup.find('td', class_='fio')
-
-        # Обработка первого элемента
-        if text5 is None:
-            mogilef_raen ='Не найдено'
-        else:
-            text_adr5 = soup.find('td', class_='adr')
-
-            mogilef_raen = f'<a href="tg://copy?text=">{text5.text.strip()}</a> Адрес: {text_adr5.text}'
-
-        sure_name = name_user.replace(' XXX', '')
-        partikls = sure_name.split()
-        surname_class = partikls[0]
-        named_class = partikls[1]
-        urk_rfpoisk = f'https://rfpoisk.ru/search/?search={sure_name.replace(' ', '%')}&town=&country={geocoder1}'
-
-        url_linked = f'https://namebook.club/peoples/search/?first_name={named_class.strip()}&last_name={surname_class.strip()}&country={geocoder1.strip()}&city=&birth_year=&zodiac=0'
-
-        response_ankets = requests.get(url_linked, headers=headers)
-        html_content_ask = response_ankets.content
-        soup = BeautifulSoup(html_content_ask, 'html.parser')
-
-        # Поиск элементов
-        date_of_birthday = soup.find('div', class_='bdate-block')
-        profile_item = soup.find('div', class_='profile-item text-center')  # переименовал для ясности
-
-        # Обработка первого элемента
-        if  date_of_birthday is None:
-            date_of_birthday = 'Не найдено'
-        else:
-            date_of_birthday = date_of_birthday.text.strip()
-
-        # Обработка второго элемента (профиля)
-        if profile_item is None:
+            fio_element = soup.find('td', class_='fio')
+            if fio_element:
+                informatio_fio_mts = fio_element.text
+                phone_element = soup.find('td', class_='adr')
+                if phone_element:
+                    telephone_from_mts = phone_element.text.strip()
+        except:
             pass
-        else:
 
-            button_get_url = profile_item.find('a', class_='btn btn-primary')
+    # Поиск в Велком и дополнительная информация
+    try:
+        link = f'https://spravochnik109.link/byelarus/mobilnaya-svyaz/vyelkom-mobilnyj-opyerator/vyelkom-mobilnyye-tyelyefony?phone=%2B{phone}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#google_vignette'
+        response = requests.get(link, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.content, 'html.parser')
 
-            if button_get_url is None:
-                pass
-            else:
-                # Получаем href из ссылки
-                href = button_get_url.get('href')
+        # Адрес
+        telephone_txt = soup.find('td', class_='adr')
+        telephone_txt = telephone_txt.text if telephone_txt else ''
 
-                link_to_people = f'https://namebook.club/{href}'
+        # ФИО
+        text_fio = soup.find(class_='res')
+        if text_fio:
+            fio_name = text_fio.text
+            fio_text = fio_name.replace("Телефоны", "").strip()
+            name_user = re.sub(r'[^\w\s]+|[\d]+', r'', fio_text)
+            sure_name = name_user.replace(' XXX', '')
 
-                response_people = requests.get(link_to_people, headers=headers)
-                html_txt_profile = response_people.content
-                soup = BeautifulSoup(html_txt_profile, 'html.parser')
-                elem_vk_id1 = soup.find_all('a', class_='blue-link')
-                elem_vk_id = elem_vk_id1[1]
-                elem_vk_id = elem_vk_id.text.strip()
-                element_txt = soup.find_all(class_='col')
-                elements_info = element_txt [0]
-                element_school = element_txt [2]
-                if elements_info is None:
-                    elements_info = 'Не найдено'
-                else:
-                    elements_info = elements_info.text.replace('Телефон', '').replace(
-                        'Aвторизуйтесь для просмотра контактных данных',
-                        '').replace(
-                        '...идет загрузка фотографий, подождите немного...', '').replace('Место проживания',
-                                                                                         '').replace(
-                        'Беларусь', '').strip()
-                    elements_info = ' '.join(elements_info.split())
+            # Поиск по регионам
+            regions = {
+                'Минск': f'https://spravochnik109.link/byelarus/minskaya-oblast/oblastnoj-tsyentr/minsk?phone=%2B{phone}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu',
+                'Витебск': f'https://spravochnik109.link/byelarus/vityebskaya-oblast/oblastnoj-tsyentr/vityebsk?phone={phone[-6:]}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu',
+                'Гродно': f'https://spravochnik109.link/byelarus/grodnyenskaya-oblast/oblastnoj-tsyentr/grodno?phone={phone[-6:]}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu',
+                'Брест': f'https://spravochnik109.link/byelarus/bryesTSkaya-oblast/oblastnoj-tsyentr/bryest?phone={phone[-6:]}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu',
+                'Гомель': f'https://spravochnik109.link/byelarus/gomyelskaya-oblast/oblastnoj-tsyentr/gomyel?phone={phone[-6:]}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu',
+                'Могилев': f'https://spravochnik109.link/byelarus/mogilyevskaya-oblast/oblastnoj-tsyentr/mogilyev?phone={phone[-6:]}&phoneSubStr=0&soname=&io=&sonameSubStr=0&street=&streetSubStr=1&house=&housing=&door=&page=1#menu'
+            }
 
-                if element_school is None:
-                   element_school= 'Не неайдено'
-                else:
-                    element_school = element_school.text.replace('НАЙТИ ОДНОКЛАССНИКОВ', '').replace('Беларусь','')
-                    lines = [line.strip() for line in element_school.split('\n') if line.strip()]
-                    element_school = '\n'.join(lines)
+            for city, url in regions.items():
+                try:
+                    resp = requests.get(url, headers=headers, timeout=5)
+                    city_soup = BeautifulSoup(resp.content, 'html.parser')
+                    city_fio = city_soup.find('td', class_='fio')
+                    if city_fio:
+                        city_addr = city_soup.find('td', class_='adr')
+                        addr_text = city_addr.text if city_addr else ''
+                        region_data[city] = f'<a href="tg://copy?text=">{city_fio.text.strip()}</a> Адрес: {addr_text}'
+                except:
+                    pass
 
-        response_out = requests.get(url_linked, headers=headers)
+            # Поиск на Namebook
+            if len(sure_name.split()) >= 2:
+                parts = sure_name.split()
+                surname_class = parts[0]
+                named_class = parts[1]
 
-        html_parse = response_out.content
-        soup = BeautifulSoup(html_parse, 'html.parser')
-        nameing_information = soup.find(class_='text-center mt-4')
+                url_linked = f'https://namebook.club/peoples/search/?first_name={named_class}&last_name={surname_class}&country={geocoder1}&city=&birth_year=&zodiac=0'
 
-        if nameing_information is None:
-            final_result_nameing = 'Не найдено'
+                try:
+                    resp = requests.get(url_linked, headers=headers, timeout=10)
+                    name_soup = BeautifulSoup(resp.content, 'html.parser')
 
-        else:
-            name_information = nameing_information.text.strip().replace('дата рожденияне указана', '').replace('', '')
-            questionnaires = name_information.split('Подробная анкета')
-            result = []
+                    # Дата рождения
+                    bdate = name_soup.find('div', class_='bdate-block')
+                    if bdate:
+                        date_of_birthday = bdate.text.strip()
 
-            for i, q in enumerate(questionnaires, 1):
-                if q.strip():  # если анкета не пустая
-                    # Очищаем строки анкеты
-                    cleaned_lines = [line.strip() for line in q.split('\n') if line.strip()]
-                    # Добавляем заголовок с номером
-                    result.append(f"АНКЕТА #{i}")
-                    result.append("Подробная анкета")
-                    # Добавляем очищенные строки
-                    result.extend(cleaned_lines)
-                    result.append("")  # пустая строка между анкетами
+                    # Профиль
+                    profile = name_soup.find('div', class_='profile-item text-center')
+                    if profile:
+                        button = profile.find('a', class_='btn btn-primary')
+                        if button and button.get('href'):
+                            profile_url = f'https://namebook.club{button.get("href")}'
+                            prof_resp = requests.get(profile_url, headers=headers, timeout=10)
+                            prof_soup = BeautifulSoup(prof_resp.content, 'html.parser')
 
-            final_result_nameing = '\n'.join(result).split('АНКЕТА #4')[0]
+                            # VK ID
+                            vk_links = prof_soup.find_all('a', class_='blue-link')
+                            if len(vk_links) > 1:
+                                elem_vk_id = vk_links[1].text.strip()
 
-    resultat = ' '.join(sure_name.split()[:2])
-    name_and_fio = resultat.split()
-    sure_name_info = name_and_fio[0].strip()
-    name_people = name_and_fio[1].strip()
+                            # Доп информация
+                            info_elements = prof_soup.find_all(class_='col')
+                            if info_elements:
+                                if len(info_elements) > 0:
+                                    info_text = info_elements[0].text
+                                    info_text = info_text.replace('Телефон', '').replace(
+                                        'Aвторизуйтесь для просмотра контактных данных', '').replace(
+                                        '...идет загрузка фотографий, подождите немного...', '').replace(
+                                        'Место проживания', '').replace('Беларусь', '').strip()
+                                    elements_info = ' '.join(info_text.split())
 
-    linked = f'https://botsman.org/country/search/?country=&countryid=1&city=&cityid=1143628&first_name={name_people}&last_name={sure_name_info}&familyid=0&s=city'
-    vk_people_link = f'https://vk.com/search/people?q={sure_name_info} {name_people}'
-    ffield = f'https://ffieldo.com/?first_name={name_people}&last_name={sure_name_info}&country={geocoder1}&city=&birth_year=&submit=Начать+поиск#h'
+                                if len(info_elements) > 2:
+                                    edu_text = info_elements[2].text
+                                    edu_text = edu_text.replace('НАЙТИ ОДНОКЛАССНИКОВ', '').replace('Беларусь', '')
+                                    lines = [line.strip() for line in edu_text.split('\n') if line.strip()]
+                                    element_school = '\n'.join(lines)
+                except:
+                    pass
+    except:
+        pass
 
+    # Генерация email
+    num_dump = random.randint(0, 6)
+    emails = []
+    for _ in range(num_dump + 1):
+        emails.append(fake.email().replace('@example.net', '@gmail.com'))
+    text_email = ' '.join(emails)
 
-    text_fraer = '1.9'
-    if not str(phone):
-        await message.answer("Введите корректный номер телефона📱")
-        await state.clear()
-    elif len(phone_valid) < 10:
-        await message.answer('🤖 Введите корректный номер телефона📱')
-        await state.clear()
+    # Формирование ссылок
+    tg_chat = f'https://t.me/{phone}'
+
+    # Клавиатура
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='🟢 WhatsApp', url=f'https://wa.me/{phone}'),
+         InlineKeyboardButton(text='🟣 Viber', url=f'https://viber.click/{phone}')],
+        [InlineKeyboardButton(text='🔵 Telegram', url=tg_chat),
+         InlineKeyboardButton(text='🔴 Сайт', url='https://tg-user.id/from/username/')]
+    ])
+
+    # Формирование текста ответа
+    if sure_name == 'Информация не найдена' and informatio_fio_mts == 'Информация не найдена':
+        # Нет никаких данных
+        text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
+                      f'├ Телефон: {message.text}\n'
+                      f'├ Оператор: {carrier1}\n'
+                      f'├ Тип: mobile\n'
+                      f'├ Регион: {timezone1}\n'
+                      f'├ Страна: {geocoder1}\n'
+                      f'├ Валид: {valid}\n'
+                      f'└ Существует: {possible}\n\n'
+                      f'📧 E-mail: {text_email}\n'
+                      f'📝 Телефонные книги: None\n\n'
+                      f'Ссылка: {tg_chat}')
+
+    elif sure_name == 'Информация не найдена' and premium_by_us:
+        # Только МТС данные и премиум
+        text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
+                      f'├ Телефон: {message.text}\n'
+                      f'├ Оператор: {carrier1}\n'
+                      f'├ Тип: mobile\n'
+                      f'├ Регион: {timezone1}\n'
+                      f'├ Страна: {geocoder1}\n'
+                      f'├ Валид: {valid}\n'
+                      f'└ Существует: {possible}\n\n'
+                      f'🔎 Поиск по МТС:\n'
+                      f'├ 👤 ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n'
+                      f'├ 🌐 VK: <a href="https://vk.com/search/people?q={informatio_fio_mts}">Ссылка на VK здесь</a>\n'
+                      f'├ 🏠 Адрес: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n'
+                      f'📧 E-mail: {text_email}\n'
+                      f'📝 Телефонные книги: None\n\n'
+                      f'Ссылка: {tg_chat}')
+
+    elif informatio_fio_mts == 'Информация не найдена' and premium_by_us:
+        # Только Велком данные и премиум
+        # Формируем текст по регионам
+        regions_text = ''
+        for city, data in region_data.items():
+            regions_text += f'├ {city}: {data}\n'
+
+        vk_link = f'https://vk.com/search/people?q={sure_name}'
+
+        text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
+                      f'├ Телефон: {message.text}\n'
+                      f'├ Оператор: {carrier1}\n'
+                      f'├ Тип: mobile\n'
+                      f'├ Регион: {timezone1}\n'
+                      f'├ Страна: {geocoder1}\n'
+                      f'├ Валид: {valid}\n'
+                      f'└ Существует: {possible}\n\n'
+                      f'<b>Основные:</b>\n'
+                      f'├ 👤 ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n'
+                      f'├ Дата рождения: <i>{date_of_birthday}</i>\n'
+                      f'├ 🌐 VK: <a href="{vk_link}">Ссылка на VK здесь</a>\n'
+                      f'├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n'
+                      f'├ <b>Доп информация</b>: <i>{elements_info}</i>\n\n'
+                      f'<b>👁️ Возможные Люди (домашний телефон {phone[-6:]})</b>:\n{regions_text}\n\n'
+                      f'📧 E-mail: {text_email}\n'
+                      f'👤 Возможные анкеты:\n'
+                      f'├ 🏫 Образование:\n{element_school.strip()}\n'
+                      f'├ 🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n\n'
+                      f'📝 Телефонные книги: None\n\n'
+                      f'Ссылка: {tg_chat}')
+
+    elif premium_by_us:
+        # Полные данные с премиумом
+        # Формируем текст по регионам
+        regions_text = ''
+        for city, data in region_data.items():
+            regions_text += f'├ {city}: {data}\n'
+
+        vk_link = f'https://vk.com/search/people?q={sure_name}'
+
+        text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
+                      f'├ Телефон: {message.text}\n'
+                      f'├ Оператор: {carrier1}\n'
+                      f'├ Тип: mobile\n'
+                      f'├ Регион: {timezone1}\n'
+                      f'├ Страна: {geocoder1}\n'
+                      f'├ Валид: {valid}\n'
+                      f'└ Существует: {possible}\n\n'
+                      f'<b>Основные:</b>\n'
+                      f'├ 👤 ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n'
+                      f'├ Дата рождения: <i>{date_of_birthday}</i>\n'
+                      f'├ 🌐 VK: <a href="{vk_link}">Ссылка на VK здесь</a>\n'
+                      f'├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n\n'
+                      f'🔎 Поиск по МТС:\n'
+                      f'├ 👤 ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n'
+                      f'├ 🏠 Адрес: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n'
+                      f'<b>👁️ Возможные Люди (домашний телефон {phone[-6:]})</b>:\n{regions_text}\n\n'
+                      f'📧 E-mail: {text_email}\n'
+                      f'👤 Возможные анкеты:\n\n'
+                      f'📝 Телефонные книги: None\n\n'
+                      f'Ссылка: {tg_chat}')
     else:
-        num_dump = random.randint(0, 6)
+        # Бесплатная версия
+        text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
+                      f'├ Телефон: {message.text}\n'
+                      f'├ Оператор: {carrier1}\n'
+                      f'├ Тип: mobile\n'
+                      f'├ Регион: {timezone1}\n'
+                      f'├ Страна: {geocoder1}\n'
+                      f'├ Валид: {valid}\n'
+                      f'└ Существует: {possible}\n\n'
+                      f'📧 E-mail: {text_email}\n'
+                      f'📝 Телефонные книги: None\n\n'
+                      f'Ссылка: {tg_chat}\n'
+                      f'<b>🔃 Чтобы узнать больше, нужно купить 🔑 Подписку</b>')
 
-        possible = phonenumbers.is_possible_number(phone_number)
+    # Отправка результата
+    await message.reply(text_osint, parse_mode='HTML', reply_markup=keyboard)
 
-        timezone1 = timezone.time_zones_for_number(phone_number)
-        valid = phonenumbers.is_valid_number(phone_number)
+    # Дополнительный поиск для российских номеров
+    if phone.startswith('7'):
+        try:
+            # Поиск IP
+            url = f'https://getscam.com/{phone}'
+            response = requests.get(url, headers=headers, timeout=10)
+            soup = BeautifulSoup(response.content, 'html.parser')
 
-        if valid is True:
-            valid = 'Да'
-        else:
-            valid = 'Нет'
-        await asyncio.sleep(2)
+            ip_element = soup.find(class_='top__info-item')
+            if ip_element:
+                ip_text = ip_element.text
+                ip_start = ip_text.find('IP адрес')
+                if ip_start != -1:
+                    ip_start += len('IP адрес')
+                    ip_end = ip_text.find('Сайт оператора', ip_start)
+                    ip_address = ip_text[ip_start:ip_end].strip()
 
-        tg_id = f'https://tg-user.id/from/username/'
+                    if ip_address != "Не найден":
+                        # Информация о компании
+                        tinkoff_url = f'https://www.tbank.ru/oleg/who-called/info/{phone}/'
+                        tinkoff_resp = requests.get(tinkoff_url, headers=headers, timeout=10)
+                        tinkoff_soup = BeautifulSoup(tinkoff_resp.content, 'html.parser')
+                        company = tinkoff_soup.find(class_='abtnK6gFv')
+                        company_text = company.text if company else 'Не найдено'
 
-        tg_chat = f'https://t.me/{phone_valid}'
+                        # Геоданные IP
+                        ip_response = requests.get(f'http://ip-api.com/json/{ip_address}').json()
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text='🟢 WhatsApp', url=f'https://wa.me/{phone_valid}'),
-             InlineKeyboardButton(text='🟣 Viber', url=f'https://viber.click/{phone_valid}')],
-            [InlineKeyboardButton(text='🔵 Telegram', url=tg_chat), InlineKeyboardButton(text='🔴 Сайт', url=tg_id)]
+                        ip_message = (f"Поиск по IP прошел успешно ✅\n\n"
+                                      f"IP: {ip_address}\n"
+                                      f"├ Провайдер: {ip_response.get('isp')}\n"
+                                      f"├ Организация: {ip_response.get('org')}\n"
+                                      f"├ Страна: {ip_response.get('country')}\n"
+                                      f"├ Регион: {ip_response.get('regionName')}\n"
+                                      f"├ Город: {ip_response.get('city')}\n"
+                                      f"├ Широта: {ip_response.get('lat')}\n"
+                                      f"└ Долгота: {ip_response.get('lon')}\n\n"
+                                      f"🏢 Предприятие: {company_text}")
 
-        ])
-        text_email = ''
-        if num_dump == 0:
-            text_email = 'Ничего не найдено'
-        elif num_dump == 1:
-            text_email = fake.email()
-            text_email = text_email.replace('@example.net', '@gmail.com')
-
-        elif num_dump == 2:
-            first_txt = fake.email()
-            second_txt = fake.email()
-            text_email = f'{first_txt} {second_txt}'
-            text_email = text_email.replace('@example.net', '@gmail.com')
-
-        elif num_dump == 3:
-            first_txt = fake.email()
-            second_txt = fake.email()
-            third_txt = fake.email()
-            text_email = f'{first_txt} {second_txt} {third_txt}'
-            text_email = text_email.replace('@example.net', '@gmail.com')
-
-        elif num_dump == 4:
-            first_txt = fake.email()
-            second_txt = fake.email()
-            third_txt = fake.email()
-            four_txt = fake.email()
-            text_email = f'{first_txt} {second_txt} {third_txt} {four_txt}'
-            text_email = text_email.replace('@example.net', '@gmail.com')
-
-        elif num_dump == 5:
-            first_txt = fake.email()
-            second_txt = fake.email()
-            third_txt = fake.email()
-            four_txt = fake.email()
-            firth_txt = fake.email()
-            text_email = f'{first_txt} {second_txt} {third_txt} {four_txt} {firth_txt}'
-            text_email = text_email.replace('@example.net', '@gmail.com')
-
-        elif num_dump == 6:
-            first_txt = fake.email()
-            second_txt = fake.email()
-            third_txt = fake.email()
-            four_txt = fake.email()
-            firth_txt = fake.email()
-            six_txt = fake.email()
-            text_email = f'{first_txt} {second_txt} {third_txt} {four_txt} {firth_txt} {six_txt}'
-            text_email = text_email.replace('@example.net', '@gmail.com')
-
-        text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: <i>{date_of_birthday}</i>\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a> \n\n🔎 Поиск по МТС:\n├ 👤ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n├ 🏠Адрес телефон: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n📧 E-mail: {text_email}\n👤 Возможные анкеты:\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
-
-        if sure_name == 'Информация не найдена' and informatio_fio_mts == 'Информация не найдена':
-            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
-        elif sure_name == 'Информация не найдена' and premium_by_us == True:
-            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n🔎 Поиск по МТС:\n├ 👤ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n├🌐 VK:<a href="https://vk.com/search/people?q={informatio_fio_mts}">Ссылка на VK здесь</a>\n├ 🏠Адрес телефон: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}'
-        elif informatio_fio_mts == 'Информация не найдена' and premium_by_us == True:
-            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n<b>Основные:</b>\n├ 👤ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n├ Дата рождения: <i>{date_of_birthday}</i>\n├🌐 VK: <a href="{vk_people_link}">Ссылка на VK здесь</a>\n├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n├ <b>Доп информация</b>: <i>{elements_info}</i>\n\n<b>👁️ Возможные Люди(домашний телефон {phone_net_obl})</b>:\n├ Минск: {minsk_raen}\n├ Витебск: {vitebsk_raen}\n├ Гродно: {grodno_raen}\n├ Брест: {brest_raen}\n├ Гомель: {gomel_raen}\n├ Могилев: {mogilef_raen}\n\n 📧 E-mail: {text_email}\n👤 Возможные анкеты:\n├ 🏫 Образование:\n{element_school.strip()}\n├🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n\n {final_result_nameing.strip()}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<a href="{urk_rfpoisk}/">RFpoisk</a>,<a href="{url_linked}">Namebook</a>,<a href="{ffield}">Ffild</a>'
-        else:
-            text_osint = f'<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n\n├ Телефон: {phone}\n├ Оператор: {carrier1}\n├ Тип: mobile\n├ Регион: {timezone1}\n├ Страна: {geocoder1}\n├ Рейтинг:{text_fraer}⭐\n├ Перенос : не переносился\n├ Валид: {valid}\n└ Существует: {possible}\n\n📧 E-mail: {text_email}\n📝Телефонные книги: None\n\nСсылка: {tg_chat}\n<b>🔃 Чтобы узнать больше то нужно купить 🔑 Подписку</b>'
-
-        await message.reply(text_osint, parse_mode='HTML', reply_markup=keyboard)
-        if phone_not.startswith('7'):
-
-           urlik = f'https://getscam.com/{phone_not}'
-           getter_html = requests.get(urlik, headers=headers)
-           html = getter_html.content
-
-           soup = BeautifulSoup(html, 'html.parser')
-
-           find_element = soup.find(class_='top__info-item')
-           ip_adr = 'Не найден'
-           ip_an = find_element
-           if ip_an is None:
-              ip_adresska = 'Не найдено'
-           else:
-               linked = f'https://www.tbank.ru/oleg/who-called/info/{phone_not}/'
-
-               response_net = requests.get(linked, headers=headers)
-
-               html_contenter = response_net.content
-               soup = BeautifulSoup(html_contenter, 'html.parser')
-               work_organisation = soup.find(class_='abtnK6gFv')
-               work_organ = ''
-               if work_organisation is None:
-                   work_organ = 'Не найдено'
-
-               else:
-                   work_organ = work_organisation.text
-               p_an = find_element.text
-               ip_start = ip_an.find('IP адрес')
-               if ip_start != -1:
-                  ip_start += len('IP адрес')
-                  ip_end = ip_an.find('Сайт оператора', ip_start)
-                  ip_adr = ip_an[ip_start:ip_end].strip()
-               else:
-                  ip_adr = "Не найден"
-
-               ip_adresska = ip_adr
-               response = requests.get(url=f'http://ip-api.com/json/{ip_adresska}').json()
-               text_ip = f"Поиск  ️по Ip прошел успешно ✅\nвся информация взята с сервиса:\n\nIP: {ip_adresska}\n├ Провайдер: {response.get('isp')}\n├ Организация: {response.get('org')}\n├ Ofset: {response.get('offset')}\n├ Валюта: {response.get('BYR')}\n├ As: {response.get('as')}\n├ As_name: {response.get('asname')}\n├ Мобильный ip:{response.get('mobile')}\n├ Прокси: {response.get('proxy')}\n├ Hosting: {response.get('hosting')}\n├ DNS:{response.get('dns')}\n├ Континент: {response.get('continentCode')}\n├ Страна: {response.get('country')}\n├ Регион: {response.get('regionName')}\n├ Город: {response.get('city')}\n├ ZIP: {response.get('zip')}\n├ Широта: {response.get('lat')}\n└ Долгота: {response.get('lon')}\n\n<b>Основные:</b>\n├ ФИО и Адрес: <a href='{link_sparochnik}'>🏠 ФИО и Адресс</a>\n\n 🏢 <b>Предприятие:</b> {work_organ} "
-               await message.answer(text_ip, parse_mode='HTML')
-        else:
+                        await message.answer(ip_message, parse_mode='HTML')
+        except:
             pass
+
     await asyncio.sleep(1)
-    await message.answer('Поиск закончился все данные вверху.', reply_markup=start_mes)
-
+    await message.answer('✅ Поиск закончен. Все данные выше.', reply_markup=start_mes)
     await state.clear()
 
 
