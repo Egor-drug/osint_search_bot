@@ -7,6 +7,8 @@ from aiogram import F, Router, Bot
 from telethon.errors import SessionPasswordNeededError
 import random
 import re
+import csv
+
 from telethon.sessions import StringSession
 import os
 from telethon import events
@@ -88,6 +90,8 @@ class Account(StatesGroup):
     code = State()
     password = State()
 
+class DatabaseSearch(StatesGroup):
+    telephone = State()
 
 class Ip(StatesGroup):
     ip_adress = State()
@@ -123,6 +127,118 @@ async def check_member(chat_member, message: Message):
 payment = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Оплатить ⭐', pay=True)]
 ])
+
+
+def search_by_phone(phone_number, filename="database-telephone"):
+
+    search_digits = ''.join(c for c in str(phone_number) if c.isdigit())
+
+    # Проверяем существование файла (с .csv и без)
+    actual_filename = filename
+    if not os.path.exists(actual_filename):
+        if not actual_filename.endswith('.csv'):
+            actual_filename = actual_filename + '.csv'
+        if not os.path.exists(actual_filename):
+            return "❌ Файл '{}' или '{}' не найден!".format(filename, actual_filename)
+
+    found_records = []
+
+    try:
+        with open(actual_filename, 'r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+
+            for row in reader:
+                row_phone = row.get('phone_number')
+
+                if row_phone is not None and str(row_phone).strip():
+                    row_phone_str = str(row_phone)
+                    row_digits = ''.join(c for c in row_phone_str if c.isdigit())
+
+                    if row_digits == search_digits:
+                        found_records.append(row)
+
+        if not found_records:
+            return "🔍 По номеру {} ничего не найдено".format(phone_number)
+
+        # Формируем строку с результатами
+        result_lines = []
+        result_lines.append("\n📱 Найдено записей: {}".format(len(found_records)))
+        result_lines.append("=" * 50)
+
+        for i, record in enumerate(found_records, 1):
+            result_lines.append("\n✨ Запись #{}".format(i))
+            result_lines.append("-" * 40)
+
+            # Основная информация
+            result_lines.append("🆔 ID: {}".format(record.get('id', '❓ Нет данных')))
+            result_lines.append("👤 Имя: {}".format(record.get('first_name', '❓ Нет данных')))
+
+            full_name = record.get('full_name')
+            if full_name and str(full_name).strip():
+                result_lines.append("🏷️ Полное имя: {}".format(full_name))
+
+            email = record.get('email')
+            if email and str(email).strip():
+                result_lines.append("📧 Email: {}".format(email))
+
+            result_lines.append("📞 Телефон: {}".format(record.get('phone_number', '❓ Нет данных')))
+
+            # Адрес
+            result_lines.append("\n🏢 Адрес:")
+            result_lines.append("   🏙️  Город: {}".format(record.get('address_city', '❓ Нет данных')))
+            result_lines.append("   🛣️  Улица: {}".format(record.get('address_street', '❓ Нет данных')))
+            result_lines.append("   🏠 Дом: {}".format(record.get('address_house', '❓ Нет данных')))
+
+            entrance = record.get('address_entrance')
+            if entrance and str(entrance).strip():
+                result_lines.append("   🚪 Подъезд: {}".format(entrance))
+
+            floor = record.get('address_floor')
+            if floor and str(floor).strip():
+                result_lines.append("   🏢 Этаж: {}".format(floor))
+
+            office = record.get('address_office')
+            if office and str(office).strip():
+                result_lines.append("   📌 Квартира/офис: {}".format(office))
+
+            doorcode = record.get('address_doorcode')
+            if doorcode and str(doorcode).strip():
+                result_lines.append("   🔑 Код домофона: {}".format(doorcode))
+
+            comment = record.get('address_comment')
+            if comment and str(comment).strip():
+                result_lines.append("   💬 Комментарий: {}".format(comment))
+
+            # Координаты
+            lat = record.get('location_latitude')
+            lon = record.get('location_longitude')
+            if lat and lon and str(lat).strip() and str(lon).strip():
+                result_lines.append("\n🗺️  Координаты: {}, {}".format(lat, lon))
+
+            # Финансы
+            amount = record.get('amount_charged')
+            if amount is not None and str(amount).strip():
+                result_lines.append("💰 Сумма: {} ₽".format(amount))
+
+            # Техническая информация
+            user_id = record.get('user_id')
+            if user_id is not None and str(user_id).strip():
+                result_lines.append("\n🆔 User ID: {}".format(user_id))
+
+            user_agent = record.get('user_agent')
+            if user_agent and str(user_agent).strip():
+                agent = str(user_agent)
+                agent_preview = agent[:50] + "..." if len(agent) > 50 else agent
+                result_lines.append("📱 User Agent: {}".format(agent_preview))
+
+            created_at = record.get('created_at')
+            if created_at and str(created_at).strip():
+                result_lines.append("📅 Дата: {}".format(created_at))
+
+        return '\n'.join(result_lines)
+
+    except Exception as e:
+        return "❌ Ошибка при чтении файла: {}".format(e)
 
 
 def admin_main_menu():
@@ -1428,54 +1544,25 @@ async def account_login(message: Message, state: FSMContext):
 
 @router.message(Account.phone_num)
 async def account_log(message: Message, state: FSMContext):
-    phone = message.text.strip().replace(' ', '').replace('+', '')
+    phone = message.text.strip().replace(' ', '').replace('+', '')  # убираем + для хранения
     session_file = f'session_{phone}.txt'
 
-    # Проверяем существующую сессию как строку
-    if os.path.exists(session_file):
-        try:
-            with open(session_file, 'r') as f:
-                session_string = f.read().strip()
+    # ... (проверка существующей сессии)
 
-            # Используем StringSession вместо файловой
-            client = TelegramClient(
-                StringSession(session_string),
-                api_id,
-                api_hash
-            )
-            await client.connect()
-
-            if await client.is_user_authorized():
-                me = await client.get_me()
-                await message.answer(f'✅ Аккаунт @{me.username} уже подключен!')
-                await setup_client_handlers(client)
-                await state.clear()
-                return
-            else:
-                await client.disconnect()
-                os.remove(session_file)  # Удаляем нерабочую сессию
-        except:
-            if os.path.exists(session_file):
-                os.remove(session_file)
-
-    # Создаем новую сессию как StringSession
     try:
-        # Создаем сессию в памяти
         session = StringSession()
-        client = TelegramClient(
-            session,
-            api_id,
-            api_hash
-        )
+        client = TelegramClient(session, api_id, api_hash)
         await client.connect()
 
-        send_code = await client.send_code_request(phone=phone)
-        print(send_code.phone_code_hash,api_hash,api_id)
+        # ВАЖНО: добавляем + при отправке запроса кода
+        send_code = await client.send_code_request(phone=f'+{phone}')  # ← ИСПРАВЛЕНО
+        print(send_code.phone_code_hash, api_hash, api_id)
+
         await state.update_data(
             hashing=send_code.phone_code_hash,
             client=client,
-            phone=phone,
-            session_string=session.save(),  # Сохраняем сессию как строку
+            phone=phone,  # храним без + для имени файла
+            session_string=session.save(),
             session_file=session_file
         )
 
@@ -1491,14 +1578,8 @@ async def account_log(message: Message, state: FSMContext):
 async def account_code_sent(message: Message, state: FSMContext):
     data = await state.get_data()
 
-    # Восстанавливаем клиент из строки сессии
     session = StringSession(data['session_string'])
-    client = TelegramClient(
-        session,
-        api_id,
-        api_hash
-    )
-
+    client = TelegramClient(session, api_id, api_hash)
     await client.connect()
 
     code = message.text.strip().replace('-100', '')
@@ -1509,8 +1590,9 @@ async def account_code_sent(message: Message, state: FSMContext):
         return
 
     try:
+        # ВАЖНО: добавляем + при входе с кодом
         await client.sign_in(
-            phone=data['phone'],
+            phone=f'+{data["phone"]}',  # ← ИСПРАВЛЕНО
             code=code,
             phone_code_hash=data['hashing']
         )
@@ -1521,16 +1603,14 @@ async def account_code_sent(message: Message, state: FSMContext):
                 f'✅ Аккаунт @{me.username} подключен!\n\n<b>Инструкция</b>:\n Чтобы начать нужно написать(.trolling)\n Чтобы остановить нужно написать(.stop).',
                 parse_mode='HTML')
 
-            # Сохраняем сессию в файл как строку
-            session_string = session.save()  # ← ПРАВИЛЬНО! Используем session, а не client.session
+            session_string = session.save()
             with open(data['session_file'], 'w') as f:
                 f.write(session_string)
 
             await setup_client_handlers(client)
 
     except SessionPasswordNeededError:
-        # Сохраняем обновленную сессию для пароля
-        session_string = session.save()  # ← ПРАВИЛЬНО!
+        session_string = session.save()
         await state.update_data(
             session_string=session_string,
             client=client
@@ -1670,6 +1750,25 @@ async def eye_of_god(message:Message,state:FSMContext):
         await state.clear()
 
     db.close()
+
+@router.message(Command('search_database'))
+async def get_phone_databases(message:Message,state:FSMContext):
+     await message.answer('📱 Введите номер телефона человека в базе')
+     await state.set_state(DatabaseSearch.telephone)
+
+@router.message(DatabaseSearch.telephone)
+async def search_phone_database_now(message:Message,state:FSMContext):
+    phone_number = message.text.strip()
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='🟢 WhatsApp', url=f'https://wa.me/{phone_number}'),
+         InlineKeyboardButton(text='🟣 Viber', url=f'https://viber.click/{phone_number}')],
+        [InlineKeyboardButton(text='🔵 Telegram', url=f'https://t.me/{phone_number}'),
+         InlineKeyboardButton(text='🔴 Сайт', url='https://tg-user.id/from/username/')]
+    ])
+    getting_phone = search_by_phone(phone_number, "voronezh-79000144022-79999995432.csv")
+    get_piter_phone = search_by_phone(phone_number,"petersburg-79817904189-79999999897.csv")
+    await message.answer(f"{getting_phone}\n{get_piter_phone}",parse_mode='HTML',reply_markup=keyboard)
+    await state.clear()
 
 @router.message(Command('search_vk'))
 async def search_vk_account(message:Message,state:FSMContext):
