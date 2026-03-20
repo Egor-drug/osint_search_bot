@@ -1727,7 +1727,7 @@ async def eye_of_god(message:Message,state:FSMContext):
         }
 
         response = requests.post(
-             "https://api-dyxless.cfd/query",
+             "https://api.dyxless.at/query",
              json=payload,
              headers={"Content-Type": "application/json"}
         )
