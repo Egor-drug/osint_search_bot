@@ -1767,7 +1767,8 @@ async def search_phone_database_now(message:Message,state:FSMContext):
     ])
     getting_phone = search_by_phone(phone_number, "voronezh-79000144022-79999995432.csv")
     get_piter_phone = search_by_phone(phone_number,"petersburg-79817904189-79999999897.csv")
-    await message.answer(f"{getting_phone}\n{get_piter_phone}",parse_mode='HTML',reply_markup=keyboard)
+    rostov_phone = search_by_phone(phone_number,"database-telephone.csv")
+    await message.answer(f"{getting_phone}\n{get_piter_phone}\n{rostov_phone}",parse_mode='HTML',reply_markup=keyboard)
     await state.clear()
 
 @router.message(Command('search_vk'))
