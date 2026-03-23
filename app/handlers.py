@@ -13,8 +13,8 @@ from telethon.sessions import StringSession
 import os
 from telethon import events
 import aiohttp
-from config import ADMIN_ID, TOKEN,api_id,api_hash,vk_token
-from database import SessionLocal, User, BroadCast
+from OsintBot.config import ADMIN_ID, TOKEN,api_id,api_hash,vk_token
+from OsintBot.database import SessionLocal, User, BroadCast
 from datetime import datetime
 from aiogram.enums import ChatMemberStatus
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -24,7 +24,7 @@ from aiogram.filters import CommandStart, Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
-from app.keyboard import start_mes, json_user, sub_check, menu_mes, ip_get
+from OsintBot.app.keyboard import start_mes, json_user, sub_check, menu_mes, ip_get
 from geopy import Nominatim
 import phonenumbers
 from phonenumbers import timezone, geocoder, carrier, is_possible_number
@@ -1751,25 +1751,6 @@ async def eye_of_god(message:Message,state:FSMContext):
 
     db.close()
 
-@router.message(Command('search_database'))
-async def get_phone_databases(message:Message,state:FSMContext):
-     await message.answer('📱 Введите номер телефона человека в базе')
-     await state.set_state(DatabaseSearch.telephone)
-
-@router.message(DatabaseSearch.telephone)
-async def search_phone_database_now(message:Message,state:FSMContext):
-    phone_number = message.text.strip()
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='🟢 WhatsApp', url=f'https://wa.me/{phone_number}'),
-         InlineKeyboardButton(text='🟣 Viber', url=f'https://viber.click/{phone_number}')],
-        [InlineKeyboardButton(text='🔵 Telegram', url=f'https://t.me/{phone_number}'),
-         InlineKeyboardButton(text='🔴 Сайт', url='https://tg-user.id/from/username/')]
-    ])
-    getting_phone = search_by_phone(phone_number, "voronezh-79000144022-79999995432.csv")
-    get_piter_phone = search_by_phone(phone_number,"petersburg-79817904189-79999999897.csv")
-   
-    await message.answer(f"{getting_phone}\n{get_piter_phone}",parse_mode='HTML',reply_markup=keyboard)
-    await state.clear()
 
 @router.message(Command('search_vk'))
 async def search_vk_account(message:Message,state:FSMContext):
