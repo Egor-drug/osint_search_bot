@@ -13,8 +13,8 @@ from telethon.sessions import StringSession
 import os
 from telethon import events
 import aiohttp
-from OsintBot.config import ADMIN_ID, TOKEN,api_id,api_hash,vk_token
-from OsintBot.database import SessionLocal, User, BroadCast
+from config import ADMIN_ID, TOKEN,api_id,api_hash,vk_token
+from database import SessionLocal, User, BroadCast
 from datetime import datetime
 from aiogram.enums import ChatMemberStatus
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -24,7 +24,7 @@ from aiogram.filters import CommandStart, Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
-from OsintBot.app.keyboard import start_mes, json_user, sub_check, menu_mes, ip_get
+from app.keyboard import start_mes, json_user, sub_check, menu_mes, ip_get
 from geopy import Nominatim
 import phonenumbers
 from phonenumbers import timezone, geocoder, carrier, is_possible_number
