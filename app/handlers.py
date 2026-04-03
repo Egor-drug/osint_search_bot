@@ -7,8 +7,8 @@ from aiogram import F, Router, Bot
 from telethon.errors import SessionPasswordNeededError
 import random
 import re
-import csv
 
+from pathlib import Path
 from telethon.sessions import StringSession
 import os
 from telethon import events
@@ -30,7 +30,7 @@ import phonenumbers
 from phonenumbers import timezone, geocoder, carrier, is_possible_number
 import vk_api
 
-
+api_telelog = 'B6j1EMtU9oAf57MlMX6wcZZ4i7lVBK6'
 router = Router()
 bot = Bot(token=TOKEN)
 fake = Faker()
@@ -71,6 +71,9 @@ class SendMessage(StatesGroup):
 
 class Username(StatesGroup):
     username = State()
+
+class Find(StatesGroup):
+    telephone = State()
 
 
 class Snos(StatesGroup):
@@ -129,117 +132,82 @@ payment = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 
-def search_by_phone(phone_number, filename="database-telephone"):
+def search_in_file(phone_number: str, filename: str) -> str:
+    """Поиск номера в файле с получением данных из phonenumbers"""
 
-    search_digits = ''.join(c for c in str(phone_number) if c.isdigit())
+    file_path = Path(r"C:\Users\USER\PycharmProjects\PythonProject\PythonAppAi\DatabaseBot") / filename
 
-    # Проверяем существование файла (с .csv и без)
-    actual_filename = filename
-    if not os.path.exists(actual_filename):
-        if not actual_filename.endswith('.csv'):
-            actual_filename = actual_filename + '.csv'
-        if not os.path.exists(actual_filename):
-            return "❌ Файл '{}' или '{}' не найден!".format(filename, actual_filename)
+    # Пробуем разные кодировки
+    encodings = ['utf-8', 'cp1251', 'windows-1251', 'latin-1', 'iso-8859-1']
 
-    found_records = []
+    file_result = None
+
+    for encoding in encodings:
+        try:
+            with open(file_path, 'r', encoding=encoding) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if phone_number in line:
+                        parts = line.split(';')
+                        file_result = {
+                            'phone': parts[0] if len(parts) > 0 else "Неизвестно",
+                            'name': parts[1] if len(parts) > 1 else "Неизвестно"
+                        }
+                        break
+            if file_result:
+                break  # Если нашли результат, выходим
+        except:
+            continue  # Пробуем следующую кодировку
 
     try:
-        with open(actual_filename, 'r', encoding='utf-8') as file:
-            reader = csv.DictReader(file)
+        # Полный номер для phonenumbers
+        full_number = f"+375{phone_number}"
+        parsed = phonenumbers.parse(full_number, "BY")
 
-            for row in reader:
-                row_phone = row.get('phone_number')
+        # Данные из phonenumbers
+        is_valid = phonenumbers.is_valid_number(parsed)
+        location = geocoder.description_for_number(parsed, "ru")
+        operator = carrier.name_for_number(parsed, "ru")
+        international = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
+        national = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.NATIONAL)
 
-                if row_phone is not None and str(row_phone).strip():
-                    row_phone_str = str(row_phone)
-                    row_digits = ''.join(c for c in row_phone_str if c.isdigit())
+        # Формируем вывод
+        if file_result:
+            result_text = (
+                f"✅ <b>НАЙДЕНО В БАЗЕ МТС</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📞 <b>Номер:</b> {file_result['phone']}\n"
+                f"👤 <b>Фамилия:</b> {file_result['name']}\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📱 <b>ДАННЫЕ ИЗ PHONENUMBERS</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"✅ <b>Валидный:</b> {'Да' if is_valid else 'Нет'}\n"
+                f"📍 <b>Местоположение:</b> {location if location else 'Неизвестно'}\n"
+                f"📡 <b>Оператор:</b> {operator if operator else 'Неизвестно'}\n"
+                f"🌍 <b>Международный:</b> {international}\n"
+                f"🏠 <b>Национальный:</b> {national}"
+            )
+        else:
+            result_text = (
+                f"❌ <b>НЕ НАЙДЕНО В БАЗЕ МТС</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📱 <b>ДАННЫЕ ИЗ PHONENUMBERS</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"✅ <b>Валидный:</b> {'Да' if is_valid else 'Нет'}\n"
+                f"📍 <b>Местоположение:</b> {location if location else 'Неизвестно'}\n"
+                f"📡 <b>Оператор:</b> {operator if operator else 'Неизвестно'}\n"
+                f"🌍 <b>Международный:</b> {international}\n"
+                f"🏠 <b>Национальный:</b> {national}"
+            )
 
-                    if row_digits == search_digits:
-                        found_records.append(row)
+        return result_text
 
-        if not found_records:
-            return "🔍 По номеру {} ничего не найдено".format(phone_number)
-
-        # Формируем строку с результатами
-        result_lines = []
-        result_lines.append("\n📱 Найдено записей: {}".format(len(found_records)))
-        result_lines.append("=" * 50)
-
-        for i, record in enumerate(found_records, 1):
-            result_lines.append("\n✨ Запись #{}".format(i))
-            result_lines.append("-" * 40)
-
-            # Основная информация
-            result_lines.append("🆔 ID: {}".format(record.get('id', '❓ Нет данных')))
-            result_lines.append("👤 Имя: {}".format(record.get('first_name', '❓ Нет данных')))
-
-            full_name = record.get('full_name')
-            if full_name and str(full_name).strip():
-                result_lines.append("🏷️ Полное имя: {}".format(full_name))
-
-            email = record.get('email')
-            if email and str(email).strip():
-                result_lines.append("📧 Email: {}".format(email))
-
-            result_lines.append("📞 Телефон: {}".format(record.get('phone_number', '❓ Нет данных')))
-
-            # Адрес
-            result_lines.append("\n🏢 Адрес:")
-            result_lines.append("   🏙️  Город: {}".format(record.get('address_city', '❓ Нет данных')))
-            result_lines.append("   🛣️  Улица: {}".format(record.get('address_street', '❓ Нет данных')))
-            result_lines.append("   🏠 Дом: {}".format(record.get('address_house', '❓ Нет данных')))
-
-            entrance = record.get('address_entrance')
-            if entrance and str(entrance).strip():
-                result_lines.append("   🚪 Подъезд: {}".format(entrance))
-
-            floor = record.get('address_floor')
-            if floor and str(floor).strip():
-                result_lines.append("   🏢 Этаж: {}".format(floor))
-
-            office = record.get('address_office')
-            if office and str(office).strip():
-                result_lines.append("   📌 Квартира/офис: {}".format(office))
-
-            doorcode = record.get('address_doorcode')
-            if doorcode and str(doorcode).strip():
-                result_lines.append("   🔑 Код домофона: {}".format(doorcode))
-
-            comment = record.get('address_comment')
-            if comment and str(comment).strip():
-                result_lines.append("   💬 Комментарий: {}".format(comment))
-
-            # Координаты
-            lat = record.get('location_latitude')
-            lon = record.get('location_longitude')
-            if lat and lon and str(lat).strip() and str(lon).strip():
-                result_lines.append("\n🗺️  Координаты: {}, {}".format(lat, lon))
-
-            # Финансы
-            amount = record.get('amount_charged')
-            if amount is not None and str(amount).strip():
-                result_lines.append("💰 Сумма: {} ₽".format(amount))
-
-            # Техническая информация
-            user_id = record.get('user_id')
-            if user_id is not None and str(user_id).strip():
-                result_lines.append("\n🆔 User ID: {}".format(user_id))
-
-            user_agent = record.get('user_agent')
-            if user_agent and str(user_agent).strip():
-                agent = str(user_agent)
-                agent_preview = agent[:50] + "..." if len(agent) > 50 else agent
-                result_lines.append("📱 User Agent: {}".format(agent_preview))
-
-            created_at = record.get('created_at')
-            if created_at and str(created_at).strip():
-                result_lines.append("📅 Дата: {}".format(created_at))
-
-        return '\n'.join(result_lines)
-
+    except FileNotFoundError:
+        return f"❌ <b>Ошибка:</b> Файл {filename} не найден по пути {file_path}"
     except Exception as e:
-        return "❌ Ошибка при чтении файла: {}".format(e)
-
+        return f"❌ <b>Ошибка:</b> {str(e)}"
 
 def admin_main_menu():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -857,7 +825,7 @@ async def tele_infa(message: Message, state: FSMContext):
     # Начало поиска
     bot_message = await message.answer("🔍 Идет поиск информации...")
     await state.update_data(telephone=message.text)
-
+    gomelin_anket_url = ''
     # Проверка премиум статуса
     db = SessionLocal()
     try:
@@ -897,6 +865,8 @@ async def tele_infa(message: Message, state: FSMContext):
     elements_info = 'Не найдено'
     element_school = 'Информация не найдена'
     elem_vk_id = 'Не найдено'
+    profile_url_result = 'Не найдено'
+    vk_profile_info = 'Не найдено'
 
     # Данные по регионам
     region_data = {
@@ -976,55 +946,64 @@ async def tele_infa(message: Message, state: FSMContext):
                 except:
                     pass
 
-            # Поиск на Namebook
+            # Поиск на Gomelin
             if len(sure_name.split()) >= 2:
                 parts = sure_name.split()
                 surname_class = parts[0]
                 named_class = parts[1]
 
-                url_linked = f'https://namebook.club/peoples/search/?first_name={named_class}&last_name={surname_class}&country={geocoder1}&city=&birth_year=&zodiac=0'
+                url_linked = f'https://gomelin.com/?first_name={named_class}&last_name={surname_class}&country={geocoder1}&city=&birth_year=&submit=Начать+поиск#h'
 
                 try:
                     resp = requests.get(url_linked, headers=headers, timeout=10)
                     name_soup = BeautifulSoup(resp.content, 'html.parser')
 
-                    # Дата рождения
-                    bdate = name_soup.find('div', class_='bdate-block')
-                    if bdate:
-                        date_of_birthday = bdate.text.strip()
+                    # Берем первый элемент short-item
+                    first_item = name_soup.find('div', class_='short-item')
 
-                    # Профиль
-                    profile = name_soup.find('div', class_='profile-item text-center')
-                    if profile:
-                        button = profile.find('a', class_='btn btn-primary')
-                        if button and button.get('href'):
-                            profile_url = f'https://namebook.club{button.get("href")}'
+                    if first_item:
+                        # Получаем ссылку на профиль из кнопки "Анкета"
+                        profile_link = first_item.find('a', class_='profile-item__detail')
+                        if profile_link and profile_link.get('href'):
+                            profile_url = f'https://gomelin.com{profile_link.get("href")}'
+                            profile_url_result = profile_url
+                            gomelin_anket_url = profile_url
+
+                            # Переходим по ссылке профиля
                             prof_resp = requests.get(profile_url, headers=headers, timeout=10)
                             prof_soup = BeautifulSoup(prof_resp.content, 'html.parser')
 
-                            # VK ID
-                            vk_links = prof_soup.find_all('a', class_='blue-link')
-                            if len(vk_links) > 1:
-                                elem_vk_id = vk_links[1].text.strip()
+                            # Парсим информацию из div с классом fdesc full-text clearfix
+                            info_div = prof_soup.find('div', class_='fdesc full-text clearfix')
+                            if info_div:
+                                vk_profile_info = info_div.text.strip()
 
-                            # Доп информация
-                            info_elements = prof_soup.find_all(class_='col')
-                            if info_elements:
-                                if len(info_elements) > 0:
-                                    info_text = info_elements[0].text
-                                    info_text = info_text.replace('Телефон', '').replace(
-                                        'Aвторизуйтесь для просмотра контактных данных', '').replace(
-                                        '...идет загрузка фотографий, подождите немного...', '').replace(
-                                        'Место проживания', '').replace('Беларусь', '').strip()
-                                    elements_info = ' '.join(info_text.split())
+                                # Извлекаем дату рождения из текста
+                                if 'рождения' in vk_profile_info:
+                                    # Ищем дату в формате "дд.мм" или "дд месяц"
+                                    date_match = re.search(r'(\d{1,2}\.\d{1,2})|\d{1,2}\s+\w+', vk_profile_info)
+                                    if date_match:
+                                        date_of_birthday = date_match.group()
 
-                                if len(info_elements) > 2:
-                                    edu_text = info_elements[2].text
-                                    edu_text = edu_text.replace('НАЙТИ ОДНОКЛАССНИКОВ', '').replace('Беларусь', '')
-                                    lines = [line.strip() for line in edu_text.split('\n') if line.strip()]
-                                    element_school = '\n'.join(lines)
-                except:
-                    pass
+                                # Извлекаем имя и фамилию из текста
+                                name_match = re.search(r'Страница\s+([А-Яа-я]+\s+[А-Яа-я]+)', vk_profile_info)
+                                if name_match and sure_name == 'Информация не найдена':
+                                    sure_name = name_match.group(1)
+
+                                # Извлекаем VK ID если есть
+                                vk_id_match = re.search(r'ID\s+(\d+)', vk_profile_info)
+                                if vk_id_match:
+                                    elem_vk_id = vk_id_match.group(1)
+
+                                # Извлекаем местоположение
+                                location_match = re.search(r'Местоположение:.*?>(.*?)<', vk_profile_info, re.DOTALL)
+                                if not location_match:
+                                    location_match = re.search(r'Местоположение:\s*(.+?)(?:\n|$)', vk_profile_info)
+                                if location_match:
+                                    elements_info = location_match.group(1).strip()
+
+                except Exception as e:
+                    print(f"Ошибка при парсинге Gomelin: {e}")
     except:
         pass
 
@@ -1081,7 +1060,6 @@ async def tele_infa(message: Message, state: FSMContext):
 
     elif informatio_fio_mts == 'Информация не найдена' and premium_by_us:
         # Только Велком данные и премиум
-        # Формируем текст по регионам
         regions_text = ''
         for city, data in region_data.items():
             regions_text += f'├ {city}: {data}\n'
@@ -1100,19 +1078,19 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'├ 👤 ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n'
                       f'├ Дата рождения: <i>{date_of_birthday}</i>\n'
                       f'├ 🌐 VK: <a href="{vk_link}">Ссылка на VK здесь</a>\n'
-                      f'├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n'
-                      f'├ <b>Доп информация</b>: <i>{elements_info}</i>\n\n'
+                      f'├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n\n'
                       f'<b>👁️ Возможные Люди (домашний телефон {phone[-6:]})</b>:\n{regions_text}\n\n'
                       f'📧 E-mail: {text_email}\n'
                       f'👤 Возможные анкеты:\n'
                       f'├ 🏫 Образование:\n{element_school.strip()}\n'
-                      f'├ 🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n\n'
+                      f'├ 🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n'
+                      f'├ 🔗 Ссылка на профиль: <a href="{profile_url_result}">Ссылка</a>\n'
+                      f'├ 📝 Дополнительная информация:\n<a href="tg://copy?text={gomelin_anket_url}">{vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона','')}</a>\n\n'
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
 
     elif premium_by_us:
         # Полные данные с премиумом
-        # Формируем текст по регионам
         regions_text = ''
         for city, data in region_data.items():
             regions_text += f'├ {city}: {data}\n'
@@ -1137,7 +1115,9 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'├ 🏠 Адрес: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n'
                       f'<b>👁️ Возможные Люди (домашний телефон {phone[-6:]})</b>:\n{regions_text}\n\n'
                       f'📧 E-mail: {text_email}\n'
-                      f'👤 Возможные анкеты:\n\n'
+                      f'👤 Возможные анкеты:\n'
+                      f'├ 🔗 Ссылка на профиль: <a href="{profile_url_result}">Ссылка</a>\n'
+                      f'├ 📝 Дополнительная информация:\n<a href="tg://copy?text={gomelin_anket_url}">{vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона','')}</a>\n\n'
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
     else:
@@ -1697,6 +1677,49 @@ async def setup_client_handlers(client):
                 # Небольшая пауза между циклами
             if not stop_flag:
                 await asyncio.sleep(1)
+
+@router.message(Command('search_database'))
+async def search_first_step(message:Message,state:FSMContext):
+    await message.answer('📱Введите номер телефона который вы хотите найти')
+    await state.set_state(Find.telephone)
+
+
+@router.message(Find.telephone)
+async def search_phoned(message: Message, state: FSMContext):
+
+        telephone = message.text.strip().replace('+', '').replace(' ', '').replace('-', '')
+
+        try:
+            # Парсим номер с помощью phonenumbers
+            parsed_number = phonenumbers.parse(telephone, "BY")
+
+            # Проверяем валидность номера
+            if not phonenumbers.is_valid_number(parsed_number):
+                await message.answer("❌ <b>Неверный формат номера</b>\nПример: <code>375334760525</code>")
+                return
+
+            # Получаем национальный номер
+            national_number = str(parsed_number.national_number)
+
+            # Убираем код оператора (33 для МТС)
+            if national_number.startswith('33'):
+                short_number = national_number[2:]  # Убираем '33'
+            else:
+                short_number = national_number
+
+            # Поиск в файле (MTS.txt на уровень выше)
+            result = search_in_file(short_number, "data_file.txt")
+
+            await message.answer(result, parse_mode="HTML")
+            await state.clear()
+
+        except phonenumbers.NumberParseException:
+            await message.answer(
+                "❌ <b>Ошибка!</b>\nНомер должен начинаться с <code>+37533</code>\nПример: <code>+375334760525</code>")
+        except Exception as e:
+            await message.answer(f"❌ <b>Ошибка:</b> {str(e)}")
+
+
 
 @router.message(F.text == '👁️ Глаз Бога')
 async def eye_of_god(message:Message,state:FSMContext):
