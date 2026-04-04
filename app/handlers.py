@@ -7,7 +7,6 @@ from aiogram import F, Router, Bot
 from telethon.errors import SessionPasswordNeededError
 import random
 import re
-
 from pathlib import Path
 from telethon.sessions import StringSession
 import os
@@ -133,13 +132,12 @@ payment = InlineKeyboardMarkup(inline_keyboard=[
 
 
 def search_in_file(phone_number: str, filename: str) -> str:
-    """Поиск номера в файле с получением данных из phonenumbers"""
+    # Получаем путь к файлу на уровень выше (где находится run.py)
+    current_dir = Path(__file__).parent  # Папка app
+    parent_dir = current_dir.parent  # Корневая папка (где run.py и data_file.txt)
+    file_path = parent_dir / filename  # Полный путь к data_file.txt
 
-    file_path = Path(r"C:\Users\USER\PycharmProjects\PythonProject\PythonAppAi\DatabaseBot") / filename
-
-    # Пробуем разные кодировки
     encodings = ['utf-8', 'cp1251', 'windows-1251', 'latin-1', 'iso-8859-1']
-
     file_result = None
 
     for encoding in encodings:
@@ -1686,38 +1684,38 @@ async def search_first_step(message:Message,state:FSMContext):
 
 @router.message(Find.telephone)
 async def search_phoned(message: Message, state: FSMContext):
+    telephone = message.text.strip().replace('+', '').replace(' ', '').replace('-', '')
 
-        telephone = message.text.strip().replace('+', '').replace(' ', '').replace('-', '')
+    try:
+        # Парсим номер с помощью phonenumbers
+        parsed_number = phonenumbers.parse(telephone, "BY")
 
-        try:
-            # Парсим номер с помощью phonenumbers
-            parsed_number = phonenumbers.parse(telephone, "BY")
+        # Проверяем валидность номера
+        if not phonenumbers.is_valid_number(parsed_number):
+            await message.answer("❌ <b>Неверный формат номера</b>\nПример: <code>375334760525</code>")
+            return
 
-            # Проверяем валидность номера
-            if not phonenumbers.is_valid_number(parsed_number):
-                await message.answer("❌ <b>Неверный формат номера</b>\nПример: <code>375334760525</code>")
-                return
+        # Получаем национальный номер
+        national_number = str(parsed_number.national_number)
 
-            # Получаем национальный номер
-            national_number = str(parsed_number.national_number)
+        # Убираем код оператора (33 для МТС)
+        if national_number.startswith('33'):
+            short_number = national_number[2:]  # Убираем '33'
+        else:
+            short_number = national_number
 
-            # Убираем код оператора (33 для МТС)
-            if national_number.startswith('33'):
-                short_number = national_number[2:]  # Убираем '33'
-            else:
-                short_number = national_number
+        # Поиск в файле (data_file.txt на уровень выше)
+        result = search_in_file(short_number, "data_file.txt")
 
-            # Поиск в файле (MTS.txt на уровень выше)
-            result = search_in_file(short_number, "data_file.txt")
+        await message.answer(result, parse_mode="HTML")
+        await state.clear()
 
-            await message.answer(result, parse_mode="HTML")
-            await state.clear()
+    except phonenumbers.NumberParseException:
+        await message.answer(
+            "❌ <b>Ошибка!</b>\nНомер должен начинаться с <code>+37533</code>\nПример: <code>+375334760525</code>")
+    except Exception as e:
+        await message.answer(f"❌ <b>Ошибка:</b> {str(e)}")
 
-        except phonenumbers.NumberParseException:
-            await message.answer(
-                "❌ <b>Ошибка!</b>\nНомер должен начинаться с <code>+37533</code>\nПример: <code>+375334760525</code>")
-        except Exception as e:
-            await message.answer(f"❌ <b>Ошибка:</b> {str(e)}")
 
 
 
