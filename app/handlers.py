@@ -7,7 +7,7 @@ from aiogram import F, Router, Bot
 from telethon.errors import SessionPasswordNeededError
 import random
 import re
-from pathlib import Path
+
 from telethon.sessions import StringSession
 import os
 from telethon import events
@@ -132,32 +132,30 @@ payment = InlineKeyboardMarkup(inline_keyboard=[
 
 
 def search_in_file(phone_number: str, filename: str) -> str:
-    # Получаем путь к файлу на уровень выше (где находится run.py)
-    current_dir = Path(__file__).parent  # Папка app
-    parent_dir = current_dir.parent  # Корневая папка (где run.py и data_file.txt)
-    file_path = parent_dir / filename  # Полный путь к data_file.txt
+    # Получаем текущую рабочую директорию (где находится run.py)
+    current_dir = os.getcwd()
+    file_path = os.path.join(current_dir, filename)
 
-    encodings = ['utf-8', 'cp1251', 'windows-1251', 'latin-1', 'iso-8859-1']
     file_result = None
 
-    for encoding in encodings:
-        try:
-            with open(file_path, 'r', encoding=encoding) as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    if phone_number in line:
-                        parts = line.split(';')
-                        file_result = {
-                            'phone': parts[0] if len(parts) > 0 else "Неизвестно",
-                            'name': parts[1] if len(parts) > 1 else "Неизвестно"
-                        }
-                        break
-            if file_result:
-                break  # Если нашли результат, выходим
-        except:
-            continue  # Пробуем следующую кодировку
+    # Читаем файл в кодировке UTF-8
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                if phone_number in line:
+                    parts = line.split(';')
+                    file_result = {
+                        'phone': parts[0] if len(parts) > 0 else "Неизвестно",
+                        'name': parts[1] if len(parts) > 1 else "Неизвестно"
+                    }
+                    break
+    except FileNotFoundError:
+        return f"❌ <b>Ошибка:</b> Файл {filename} не найден по пути {file_path}"
+    except Exception as e:
+        return f"❌ <b>Ошибка при чтении файла:</b> {str(e)}"
 
     try:
         # Полный номер для phonenumbers
@@ -202,8 +200,6 @@ def search_in_file(phone_number: str, filename: str) -> str:
 
         return result_text
 
-    except FileNotFoundError:
-        return f"❌ <b>Ошибка:</b> Файл {filename} не найден по пути {file_path}"
     except Exception as e:
         return f"❌ <b>Ошибка:</b> {str(e)}"
 
@@ -1704,8 +1700,8 @@ async def search_phoned(message: Message, state: FSMContext):
         else:
             short_number = national_number
 
-        # Поиск в файле (data_file.txt на уровень выше)
-        result = search_in_file(short_number, "data_file.txt")
+        # Поиск в файле (MTS.txt на том же уровне, где run.py)
+        result = search_in_file(short_number, "MTS.txt")
 
         await message.answer(result, parse_mode="HTML")
         await state.clear()
