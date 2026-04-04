@@ -132,13 +132,8 @@ payment = InlineKeyboardMarkup(inline_keyboard=[
 
 
 def search_in_file(phone_number: str, filename: str) -> str:
-    # Получаем текущую рабочую директорию (где находится run.py)
-    current_dir = os.getcwd()
-    file_path = os.path.join(current_dir, filename)
 
-    file_result = None
-
-    # Читаем файл в кодировке UTF-8
+    file_path = 'MTS.txt'
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             for line in f:
@@ -1701,7 +1696,7 @@ async def search_phoned(message: Message, state: FSMContext):
             short_number = national_number
 
         # Поиск в файле (MTS.txt на том же уровне, где run.py)
-        result = search_in_file(short_number, "MTS.txt")
+        result = search_in_file(short_number, "../MTS.txt")
 
         await message.answer(result, parse_mode="HTML")
         await state.clear()
