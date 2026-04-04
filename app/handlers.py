@@ -1709,7 +1709,72 @@ async def search_phoned(message: Message, state: FSMContext):
         await message.answer(f"❌ <b>Ошибка:</b> {str(e)}")
 
 
+@router.message(Command("check"))
+async def check_system(message: Message):
+    """Проверка наличия файла на Railway"""
+    import os
 
+    info = []
+    info.append("🔍 <b>ДИАГНОСТИКА</b>\n")
+
+    # 1. Где мы?
+    cwd = os.getcwd()
+    info.append(f"📁 Текущая директория: `{cwd}`")
+
+    # 2. Что есть в текущей директории
+    try:
+        files = os.listdir(cwd)
+        info.append(f"\n📄 Файлы в корне:")
+        for f in files[:15]:  # Покажем первые 15
+            size = os.path.getsize(os.path.join(cwd, f)) if os.path.isfile(os.path.join(cwd, f)) else 0
+            if os.path.isfile(os.path.join(cwd, f)):
+                info.append(f"  📄 {f} ({size} bytes)")
+            else:
+                info.append(f"  📁 {f}/")
+    except Exception as e:
+        info.append(f"❌ Ошибка: {e}")
+
+    # 3. Ищем MTS.txt
+    info.append(f"\n🔎 <b>Поиск MTS.txt:</b>")
+    found = False
+
+    # Проверяем в разных местах
+    paths = [
+        os.path.join(cwd, "MTS.txt"),
+        os.path.join(cwd, "app", "MTS.txt"),
+        "/app/MTS.txt",
+        "/app/app/MTS.txt",
+        os.path.join(os.path.dirname(__file__), "MTS.txt"),
+        os.path.join(os.path.dirname(__file__), "..", "MTS.txt"),
+    ]
+
+    for path in paths:
+        if os.path.exists(path):
+            size = os.path.getsize(path)
+            info.append(f"✅ НАЙДЕН: `{path}` ({size} bytes)")
+            found = True
+            # Покажем первые 3 строки
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    lines = [f.readline().strip() for _ in range(3)]
+                info.append(f"📝 Первые строки: {', '.join(lines)}")
+            except:
+                pass
+            break
+
+    if not found:
+        info.append(f"❌ Файл MTS.txt НЕ НАЙДЕН нигде!")
+        info.append(f"\n💡 <b>Решение:</b> Создайте файл через консоль Railway:")
+        info.append(f"```bash")
+        info.append(f"railway shell")
+        info.append(f"cat > MTS.txt << 'EOF'")
+        info.append(f"760525;КОЛКАТОВ Д.С.")
+        info.append(f"2000191;БАЛЮК")
+        info.append(f"EOF")
+        info.append(f"exit")
+        info.append(f"```")
+
+    await message.answer("\n".join(info), parse_mode="HTML")
 
 
 @router.message(F.text == '👁️ Глаз Бога')
