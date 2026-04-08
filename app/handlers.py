@@ -1506,7 +1506,7 @@ async def json(callback: CallbackQuery):
     await callback.message.answer(f"{jsons}")
 
 
-@router.message(F.text == '👤 Аккаунт')
+@router.message(Command('account'))
 async def account_login(message: Message, state: FSMContext):
     await state.set_state(Account.phone_num)
     await message.answer('Введи номер телефона 📲', parse_mode='HTML')
@@ -1766,7 +1766,7 @@ async def eye_of_god(message:Message,state:FSMContext):
     db.close()
 
 
-@router.message(Command('search_vk'))
+@router.message(F.text == '🔵 VK')
 async def search_vk_account(message:Message,state:FSMContext):
     await message.answer('Введите id пользователя VK:')
     await state.set_state(Vk.vk_id)
@@ -2016,6 +2016,9 @@ async def add_admin(message:Message,state:FSMContext):
 
 @router.message(Admin.admin_id)
 async def adding_admin(message:Message,state:FSMContext):
+
+
+
     try:
         admin_id = int(message.text.strip())
 
@@ -2033,7 +2036,13 @@ async def adding_admin(message:Message,state:FSMContext):
 
 
         admin_list.append(admin_id)
-        await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов.')
+        db = SessionLocal()
+        user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+        user.premium = True
+        user.queries = 10
+        db.commit()
+        db.close()
+        await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов.И получен 🔑 Премиум и запросы')
 
 
     except ValueError:
