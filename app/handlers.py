@@ -342,7 +342,7 @@ async def search(message: Message):
     await asyncio.sleep(1)
 
     await message.reply(
-        f'Ваш пользователь найден:\n\n{user_details}├ 🆔 Id: <a href="tg://copy?text={message_id_user}">{message_id_user}</a>\n├ ➡️ Ссылка: <a href="{shares}">Вот ссылка на аккаунты 👥</a>\n\n└ Info: {phone_user}\n',
+        f'Ваш пользователь найден:\n\n{user_details}├ 🆔 Id:<code>{message_id_user}</code>\n├ ➡️ Ссылка: <a href="{shares}">Вот ссылка на аккаунты 👥</a>\n\n└ Info: {phone_user}\n',
         reply_markup=keyboard,parse_mode='HTML')
 
     await asyncio.sleep(2)
@@ -1041,7 +1041,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'├ Валид: {valid}\n'
                       f'└ Существует: {possible}\n\n'
                       f'🔎 Поиск по МТС:\n'
-                      f'├ 👤 ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n'
+                      f'├ 👤 ФИО: <code>{informatio_fio_mts}</code>\n'
                       f'├ 🌐 VK: <a href="https://vk.com/search/people?q={informatio_fio_mts}">Ссылка на VK здесь</a>\n'
                       f'├ 🏠 Адрес: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n'
                       f'📧 E-mail: {text_email}\n'
@@ -1065,7 +1065,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'├ Валид: {valid}\n'
                       f'└ Существует: {possible}\n\n'
                       f'<b>Основные:</b>\n'
-                      f'├ 👤 ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n'
+                      f'├ 👤 ФИО: <code>{sure_name}</code>\n'
                       f'├ Дата рождения: <i>{date_of_birthday}</i>\n'
                       f'├ 🌐 VK: <a href="{vk_link}">Ссылка на VK здесь</a>\n'
                       f'├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n\n'
@@ -1075,7 +1075,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'├ 🏫 Образование:\n{element_school.strip()}\n'
                       f'├ 🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n'
                       f'├ 🔗 Ссылка на профиль: <a href="{profile_url_result}">Ссылка</a>\n'
-                      f'├ 📝 Дополнительная информация:\n<a href="tg://copy?text={gomelin_anket_url}">{vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона','')}</a>\n\n'
+                      f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона','')}</a>\n\n'
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
 
@@ -1096,7 +1096,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'├ Валид: {valid}\n'
                       f'└ Существует: {possible}\n\n'
                       f'<b>Основные:</b>\n'
-                      f'├ 👤 ФИО: <a href="tg://copy?text={sure_name}">{sure_name}</a>\n'
+                      f'├ 👤 ФИО: <code>{sure_name}">{sure_name}</code>\n'
                       f'├ Дата рождения: <i>{date_of_birthday}</i>\n'
                       f'├ 🌐 VK: <a href="{vk_link}">Ссылка на VK здесь</a>\n'
                       f'├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n\n'
@@ -1107,7 +1107,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'📧 E-mail: {text_email}\n'
                       f'👤 Возможные анкеты:\n'
                       f'├ 🔗 Ссылка на профиль: <a href="{profile_url_result}">Ссылка</a>\n'
-                      f'├ 📝 Дополнительная информация:\n<a href="tg://copy?text={gomelin_anket_url}">{vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона','')}</a>\n\n'
+                      f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона','')}</a>\n\n'
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
     else:
@@ -1495,7 +1495,7 @@ async def profile(message: Message):
         premium_by_us = '❌'
 
     await message.reply(
-        f'ℹ️ Вся необходимая информация о вашем профиле\n\n🏷️ <b>Имя:</b> <a href="tg://copy?text=ddddd">{message.from_user.full_name}</a>\n🔗<b>Username:</b> @{message.from_user.username}\n\n🆔 <b>Мой ID:</b> <a href="tg://copy?text=ddddddd">{message.from_user.id}</a>\n📆 <b>Регистрация:</b> <a href="tg://copy?text=fdddd">{user_register_at}</a>\n🔃 <b>TG Премиум:</b> {message.from_user.is_premium}\n🧮 <b>Купленные запросы:</b> <a href="tg://copy?text=dddd">{queries_user}</a>\n\n🔑 <b>Подписка:</b> {premium_by_us}\n🗣️ <b>Язык:</b> <b>{message.from_user.language_code}</b>\n\n💰 Твой баланс: <a href="tg://copy?text=0.00">0.00 RUB</a>\n',
+        f'ℹ️ Вся необходимая информация о вашем профиле\n\n🏷️ <b>Имя:</b> <code>{message.from_user.full_name}</code>\n🔗<b>Username:</b> @{message.from_user.username}\n\n🆔 <b>Мой ID:</b> <code>{message.from_user.id}</code>\n📆 <b>Регистрация:</b> <code>{user_register_at}</code>\n🔃 <b>TG Премиум:</b> {message.from_user.is_premium}\n🧮 <b>Купленные запросы:</b> <code>{queries_user}</code>\n\n🔑 <b>Подписка:</b> {premium_by_us}\n🗣️ <b>Язык:</b> <b>{message.from_user.language_code}</b>\n\n💰 Твой баланс: <a href="tg://copy?text=0.00">0.00 RUB</a>\n',
         reply_markup=json_user,parse_mode="HTML")
 
 
@@ -1684,7 +1684,7 @@ async def search_phoned(message: Message, state: FSMContext):
 
         # Проверяем валидность номера
         if not phonenumbers.is_valid_number(parsed_number):
-            await message.answer("❌ <b>Неверный формат номера</b>\nПример: <code>375334760525</code>")
+            await message.answer("❌ <b>Неверный формат номера</b>\nПример: <code>375334760525</code>",parse_mode='HTML')
             return
 
         # Получаем национальный номер
@@ -1704,7 +1704,7 @@ async def search_phoned(message: Message, state: FSMContext):
 
     except phonenumbers.NumberParseException:
         await message.answer(
-            "❌ <b>Ошибка!</b>\nНомер должен начинаться с <code>+37533</code>\nПример: <code>+375334760525</code>")
+            "❌ <b>Ошибка!</b>\nНомер должен начинаться с <code>+37533</code>\nПример: <code>+375334760525</code>",parse_mode='HTML')
     except Exception as e:
         await message.answer(f"❌ <b>Ошибка:</b> {str(e)}")
 
@@ -1902,17 +1902,17 @@ async def vk_searching(message: Message, state: FSMContext):
         response_text += f'<b>👤 Имя: {first_name}</b>\n'
         response_text += f'<b>👤 Фамилия: {last_name}</b>\n'
         response_text += f'<b>🚻 Пол: {sex}</b>\n'
-        response_text += f'<b>🆔 ID:</b> <a href="tg://copy?text={user_vk_id}">{user_vk_id}</a>\n\n'
+        response_text += f'<b>🆔 ID:</b> <code>{user_vk_id}</code>\n\n'
 
         response_text += f'{online_status}\n'
-        response_text += f'<b>📅 Последний раз:</b> <a href="tg://copy?text={last_seen_time}">{last_seen_time}</a>\n'
+        response_text += f'<b>📅 Последний раз:</b> <code>{last_seen_time}</code>\n'
         response_text += f'<b>✅ Верификация:</b> {verified}\n\n'
 
         response_text += f'<b>🏛️ Город: {city_name}</b>\n'
         if home_town != 'Не указано' and home_town != city_name:
             response_text += f'📍<b> Родной город: {home_town}</b>\n'
 
-        response_text += f'📅<b> Дата рождения:</b> <a href="tg://copy?text={birthday}">{birthday}</a>\n'
+        response_text += f'📅<b> Дата рождения:</b><code>{birthday}</code>\n'
         response_text += f'💍 <b>Семейное положение: {relation}</b>\n'
 
         if personal_info:
