@@ -15,7 +15,6 @@ geopy==2.4.1
 jsonschema==4.23.0
 jsonschema-specifications==2025.4.1
 lxml==5.4.0
-
 phonenumbers==9.0.13
 pydantic==2.11.4
 pydantic_core==2.33.2
@@ -26,4 +25,5 @@ requests-file==2.1.0
 six==1.17.0
 SQLAlchemy==2.0.43
 Telethon==1.40.0
+
 
