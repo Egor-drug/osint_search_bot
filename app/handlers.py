@@ -2038,22 +2038,35 @@ async def adding_admin(message: Message, state: FSMContext):
 
         db = SessionLocal()
 
+        # Ищем пользователя
         user = db.query(User).filter(User.telegram_id == str(admin_id)).first()
 
-        
-        user.premium = True
-        user.queries = 10
-        db.commit()
-        await message.answer(
-        f'✅ ID {admin_id} успешно добавлен в список администраторов. Пользователь получил 🔑 Премиум и 10 запросов')
-       
+        if user:
+            # Если пользователь существует — обновляем
+            user.premium = True
+            user.queries = 10
+            db.commit()
+            await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов. Пользователь получил 🔑 Премиум и 10 запросов')
+        else:
+            # Если пользователя нет в базе — создаём нового
+            new_user = User(
+                telegram_id=str(admin_id),
+                name=None,
+                register_at=datetime.now().isoformat(),
+                active=True,
+                premium=True,
+                queries=10
+            )
+            db.add(new_user)
+            db.commit()
+            await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов и создан в БД. Пользователь получил 🔑 Премиум и 10 запросов')
+
         db.close()
 
     except ValueError:
         await message.answer('❌ Пожалуйста, введите корректный числовой ID')
     finally:
         await state.clear()
-        
         
 @router.message(F.text.startswith('@'))
 async def user_osint(message: Message):
