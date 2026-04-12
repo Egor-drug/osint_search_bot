@@ -1478,6 +1478,193 @@ async def ddosing(message: Message, state: FSMContext):
     await state.clear()
 
 
+@router.message(F.text == '🔵 VK')
+async def search_vk_account(message:Message,state:FSMContext):
+    await message.answer('Введите id пользователя VK:')
+    await state.set_state(Vk.vk_id)
+
+
+@router.message(Vk.vk_id)
+async def vk_searching(message: Message, state: FSMContext):
+    user_vk_id = message.text.strip()
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📷 Фото профиля", url=f"https://vk.com/albums{user_vk_id}")],
+        [InlineKeyboardButton(text='🔵 Vk', url=f'https://vk.com/id{user_vk_id}')]
+    ])
+
+    try:
+        user_data = vk.users.get(
+            user_ids=f'{user_vk_id}',
+            fields='bdate, city, country, contacts, sex, online, last_seen, relation, education, universities, schools, occupation, about, status, followers_count, verified, home_town, personal, site, activities, interests, music, movies, tv, books, games, counters'
+        )
+
+        if not user_data:
+            await message.answer("❌ Пользователь не найден.")
+            await state.clear()
+            return
+
+        user = user_data[0]
+
+        def get_field(field, default='Не указано'):
+            return user.get(field, default) or default
+
+        # Базовые данные
+        first_name = get_field('first_name')
+        last_name = get_field('last_name')
+        birthday = get_field('bdate')
+
+        # Пол
+        sex_map = {1: 'Женский', 2: 'Мужской', 0: 'Не указан'}
+        sex = sex_map.get(get_field('sex', '0'), 'Не указан')
+
+        # Онлайн статус
+        online_status = '✅ Онлайн' if get_field('online') else '❌ Оффлайн'
+
+        # Время последнего посещения
+        last_seen = get_field('last_seen', 'не известно')
+        last_seen_time = ''
+        if last_seen and isinstance(last_seen, dict) and 'time' in last_seen:
+            from datetime import datetime
+            last_seen_dt = datetime.fromtimestamp(last_seen['time'])
+            last_seen_time = last_seen_dt.strftime('%d.%m.%Y %H:%M')
+        else:
+            last_seen_time = 'Неизвестно'
+
+        # Город
+        city_name = 'Не указан'
+        if 'city' in user and user['city']:
+            city_name = user['city'].get('title', 'Не указан')
+
+        # Родной город
+        home_town = get_field('home_town')
+
+        # Семейное положение
+        relation_map = {
+            1: 'Не женат/Не замужем',
+            2: 'Есть друг/Есть подруга',
+            3: 'Помолвлен/Помолвлена',
+            4: 'Женат/Замужем',
+            5: 'Всё сложно',
+            6: 'В активном поиске',
+            7: 'Влюблён/Влюблена',
+            8: 'В гражданском браке',
+            0: 'Не указано'
+        }
+        relation = relation_map.get(get_field('relation', '0'), 'Не указано')
+
+        # Образование
+        education_info = []
+        if 'education' in user:
+            edu = user['education']
+            if edu.get('university_name'):
+                education_info.append(f"🎓 {edu['university_name']}")
+
+        # Университеты
+        universities_info = []
+        if 'universities' in user and user['universities']:
+            for uni in user['universities'][:2]:
+                name = uni.get('name', '')
+                if name:
+                    universities_info.append(f"🏫 {name}")
+
+        # Работа
+        work_info = ''
+        occupation_info = get_field('occupation', 'не указано')
+        if occupation_info and isinstance(occupation_info, dict):
+            if occupation_info.get('type') == 'work':
+                work_info = f"💼 {occupation_info.get('name', '')}"
+
+        # О себе
+        about = get_field('about')
+        if about and len(about) > 150:
+            about = about[:150] + "..."
+
+        # Статус
+        status = get_field('status')
+
+        # Верификация
+        verified = '✅ Да' if get_field('verified') else '❌ Нет'
+
+        # Личная информация
+        personal_info = []
+        if 'personal' in user and user['personal']:
+            personal = user['personal']
+            if personal.get('religion'):
+                personal_info.append(f"🙏 {personal['religion']}")
+
+        # Счетчики
+        counters_info = []
+        if 'counters' in user and user['counters']:
+            counters = user['counters']
+            if counters.get('friends'):
+                counters_info.append(f"👥 {counters['friends']}")
+            if counters.get('photos'):
+                counters_info.append(f"📷 {counters['photos']}")
+
+        # Доступ к профилю
+        can_access = user.get('can_access_closed', False)
+        is_closed = user.get('is_closed', False)
+        is_closed_text = 'Закрытый' if is_closed else 'Открытый'
+        access_text = 'Есть' if can_access else 'Нет'
+
+        # Формируем сообщение (простой текст)
+        response_text = f'🔍<b> Результаты поиска VK</b>\n\n'
+
+        response_text += f'<b>👤 Имя: {first_name}</b>\n'
+        response_text += f'<b>👤 Фамилия: {last_name}</b>\n'
+        response_text += f'<b>🚻 Пол: {sex}</b>\n'
+        response_text += f'<b>🆔 ID:</b> <code>{user_vk_id}</code>\n\n'
+
+        response_text += f'{online_status}\n'
+        response_text += f'<b>📅 Последний раз:</b> <code>{last_seen_time}</code>\n'
+        response_text += f'<b>✅ Верификация:</b> {verified}\n\n'
+
+        response_text += f'<b>🏛️ Город: {city_name}</b>\n'
+        if home_town != 'Не указано' and home_town != city_name:
+            response_text += f'📍<b> Родной город: {home_town}</b>\n'
+
+        response_text += f'📅<b> Дата рождения:</b><code>{birthday}</code>\n'
+        response_text += f'💍 <b>Семейное положение: {relation}</b>\n'
+
+        if personal_info:
+            response_text += f'📌<b> Личное: {", ".join(personal_info)}</b>n'
+
+        if about != 'Не указано':
+            response_text += f'\n📝<b> О себе:</b>\n<i>{about}</i>\n'
+
+        if status != 'Не указано' and status:
+            response_text += f'\n💬<b> Статус:</b>\n{status}\n'
+
+        # Образование и работа
+        if education_info or universities_info or work_info:
+            response_text += f'\n🎓<b> Образование и работа:</b>\n'
+            for edu in education_info:
+                response_text += f'{edu}\n'
+            for uni in universities_info:
+                response_text += f'{uni}\n'
+            if work_info:
+                response_text += f'{work_info}\n'
+
+        # Счетчики
+        if counters_info:
+            response_text += f'\n📊<b> Активность:</b>\n'
+            response_text += f' | '.join(counters_info) + '\n'
+
+        response_text += f'\n<b>🔐 Профиль: {is_closed_text}</b>\n'
+        response_text += f'<b>🔓 Доступ: {access_text}</b>'
+
+        # Отправляем сообщение
+        await message.answer(response_text, parse_mode='HTML', reply_markup=keyboard)
+
+    except Exception:
+        await message.answer(
+            f"❌ Ошибка при поиске\n"
+            f"Проверьте правильность ID и попробуйте снова."
+        )
+
+    await state.clear()
+
 @router.message(F.text == '🕵️ ️Мой профиль')
 async def profile(message: Message):
     db = SessionLocal()
@@ -1766,192 +1953,7 @@ async def eye_of_god(message:Message,state:FSMContext):
     db.close()
 
 
-@router.message(F.text == '🔵 VK')
-async def search_vk_account(message:Message,state:FSMContext):
-    await message.answer('Введите id пользователя VK:')
-    await state.set_state(Vk.vk_id)
 
-
-@router.message(Vk.vk_id)
-async def vk_searching(message: Message, state: FSMContext):
-    user_vk_id = message.text.strip()
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📷 Фото профиля", url=f"https://vk.com/albums{user_vk_id}")],
-        [InlineKeyboardButton(text='🔵 Vk', url=f'https://vk.com/id{user_vk_id}')]
-    ])
-
-    try:
-        user_data = vk.users.get(
-            user_ids=f'{user_vk_id}',
-            fields='bdate, city, country, contacts, sex, online, last_seen, relation, education, universities, schools, occupation, about, status, followers_count, verified, home_town, personal, site, activities, interests, music, movies, tv, books, games, counters'
-        )
-
-        if not user_data:
-            await message.answer("❌ Пользователь не найден.")
-            await state.clear()
-            return
-
-        user = user_data[0]
-
-        def get_field(field, default='Не указано'):
-            return user.get(field, default) or default
-
-        # Базовые данные
-        first_name = get_field('first_name')
-        last_name = get_field('last_name')
-        birthday = get_field('bdate')
-
-        # Пол
-        sex_map = {1: 'Женский', 2: 'Мужской', 0: 'Не указан'}
-        sex = sex_map.get(get_field('sex', '0'), 'Не указан')
-
-        # Онлайн статус
-        online_status = '✅ Онлайн' if get_field('online') else '❌ Оффлайн'
-
-        # Время последнего посещения
-        last_seen = get_field('last_seen', 'не известно')
-        last_seen_time = ''
-        if last_seen and isinstance(last_seen, dict) and 'time' in last_seen:
-            from datetime import datetime
-            last_seen_dt = datetime.fromtimestamp(last_seen['time'])
-            last_seen_time = last_seen_dt.strftime('%d.%m.%Y %H:%M')
-        else:
-            last_seen_time = 'Неизвестно'
-
-        # Город
-        city_name = 'Не указан'
-        if 'city' in user and user['city']:
-            city_name = user['city'].get('title', 'Не указан')
-
-        # Родной город
-        home_town = get_field('home_town')
-
-        # Семейное положение
-        relation_map = {
-            1: 'Не женат/Не замужем',
-            2: 'Есть друг/Есть подруга',
-            3: 'Помолвлен/Помолвлена',
-            4: 'Женат/Замужем',
-            5: 'Всё сложно',
-            6: 'В активном поиске',
-            7: 'Влюблён/Влюблена',
-            8: 'В гражданском браке',
-            0: 'Не указано'
-        }
-        relation = relation_map.get(get_field('relation', '0'), 'Не указано')
-
-        # Образование
-        education_info = []
-        if 'education' in user:
-            edu = user['education']
-            if edu.get('university_name'):
-                education_info.append(f"🎓 {edu['university_name']}")
-
-        # Университеты
-        universities_info = []
-        if 'universities' in user and user['universities']:
-            for uni in user['universities'][:2]:
-                name = uni.get('name', '')
-                if name:
-                    universities_info.append(f"🏫 {name}")
-
-        # Работа
-        work_info = ''
-        occupation_info = get_field('occupation', 'не указано')
-        if occupation_info and isinstance(occupation_info, dict):
-            if occupation_info.get('type') == 'work':
-                work_info = f"💼 {occupation_info.get('name', '')}"
-
-        # О себе
-        about = get_field('about')
-        if about and len(about) > 150:
-            about = about[:150] + "..."
-
-        # Статус
-        status = get_field('status')
-
-        # Верификация
-        verified = '✅ Да' if get_field('verified') else '❌ Нет'
-
-        # Личная информация
-        personal_info = []
-        if 'personal' in user and user['personal']:
-            personal = user['personal']
-            if personal.get('religion'):
-                personal_info.append(f"🙏 {personal['religion']}")
-
-        # Счетчики
-        counters_info = []
-        if 'counters' in user and user['counters']:
-            counters = user['counters']
-            if counters.get('friends'):
-                counters_info.append(f"👥 {counters['friends']}")
-            if counters.get('photos'):
-                counters_info.append(f"📷 {counters['photos']}")
-
-        # Доступ к профилю
-        can_access = user.get('can_access_closed', False)
-        is_closed = user.get('is_closed', False)
-        is_closed_text = 'Закрытый' if is_closed else 'Открытый'
-        access_text = 'Есть' if can_access else 'Нет'
-
-        # Формируем сообщение (простой текст)
-        response_text = f'🔍<b> Результаты поиска VK</b>\n\n'
-
-        response_text += f'<b>👤 Имя: {first_name}</b>\n'
-        response_text += f'<b>👤 Фамилия: {last_name}</b>\n'
-        response_text += f'<b>🚻 Пол: {sex}</b>\n'
-        response_text += f'<b>🆔 ID:</b> <code>{user_vk_id}</code>\n\n'
-
-        response_text += f'{online_status}\n'
-        response_text += f'<b>📅 Последний раз:</b> <code>{last_seen_time}</code>\n'
-        response_text += f'<b>✅ Верификация:</b> {verified}\n\n'
-
-        response_text += f'<b>🏛️ Город: {city_name}</b>\n'
-        if home_town != 'Не указано' and home_town != city_name:
-            response_text += f'📍<b> Родной город: {home_town}</b>\n'
-
-        response_text += f'📅<b> Дата рождения:</b><code>{birthday}</code>\n'
-        response_text += f'💍 <b>Семейное положение: {relation}</b>\n'
-
-        if personal_info:
-            response_text += f'📌<b> Личное: {", ".join(personal_info)}</b>n'
-
-        if about != 'Не указано':
-            response_text += f'\n📝<b> О себе:</b>\n<i>{about}</i>\n'
-
-        if status != 'Не указано' and status:
-            response_text += f'\n💬<b> Статус:</b>\n{status}\n'
-
-        # Образование и работа
-        if education_info or universities_info or work_info:
-            response_text += f'\n🎓<b> Образование и работа:</b>\n'
-            for edu in education_info:
-                response_text += f'{edu}\n'
-            for uni in universities_info:
-                response_text += f'{uni}\n'
-            if work_info:
-                response_text += f'{work_info}\n'
-
-        # Счетчики
-        if counters_info:
-            response_text += f'\n📊<b> Активность:</b>\n'
-            response_text += f' | '.join(counters_info) + '\n'
-
-        response_text += f'\n<b>🔐 Профиль: {is_closed_text}</b>\n'
-        response_text += f'<b>🔓 Доступ: {access_text}</b>'
-
-        # Отправляем сообщение
-        await message.answer(response_text, parse_mode='HTML', reply_markup=keyboard)
-
-    except Exception:
-        await message.answer(
-            f"❌ Ошибка при поиске\n"
-            f"Проверьте правильность ID и попробуйте снова."
-        )
-
-    await state.clear()
 
 @router.message(Command('inn'))
 async def get_inn(message:Message,state:FSMContext):
@@ -2014,11 +2016,9 @@ async def add_admin(message:Message,state:FSMContext):
         await message.answer('❌ Вы не имеете доступа к этой команде')
         return
 
+
 @router.message(Admin.admin_id)
-async def adding_admin(message:Message,state:FSMContext):
-
-
-
+async def adding_admin(message: Message, state: FSMContext):
     try:
         admin_id = int(message.text.strip())
 
@@ -2034,23 +2034,27 @@ async def adding_admin(message:Message,state:FSMContext):
             await state.clear()
             return
 
-        db = SessionLocal()
-        user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
-        user.premium = True
-        print('ok prem is true')
-        db.commit()
-        db.close()
-        
         admin_list.append(admin_id)
-        
-        await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов.И получен 🔑 Премиум')
 
+        db = SessionLocal()
+
+        user = db.query(User).filter(User.telegram_id == str(admin_id)).first()
+
+        
+        user.premium = True
+        user.queries = 10
+        db.commit()
+        await message.answer(
+        f'✅ ID {admin_id} успешно добавлен в список администраторов. Пользователь получил 🔑 Премиум и 10 запросов')
+       
+        db.close()
 
     except ValueError:
         await message.answer('❌ Пожалуйста, введите корректный числовой ID')
     finally:
         await state.clear()
-
+        
+        
 @router.message(F.text.startswith('@'))
 async def user_osint(message: Message):
     username = message.text.strip()
