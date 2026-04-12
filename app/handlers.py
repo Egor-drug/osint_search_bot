@@ -2034,15 +2034,16 @@ async def adding_admin(message:Message,state:FSMContext):
             await state.clear()
             return
 
-
-        admin_list.append(admin_id)
         db = SessionLocal()
         user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
         user.premium = True
-        user.queries = 10
+        print('ok prem is true')
         db.commit()
         db.close()
-        await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов.И получен 🔑 Премиум и запросы')
+        
+        admin_list.append(admin_id)
+        
+        await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов.И получен 🔑 Премиум')
 
 
     except ValueError:
