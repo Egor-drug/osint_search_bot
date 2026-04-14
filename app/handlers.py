@@ -809,7 +809,6 @@ async def tele_osint(message: Message, state: FSMContext):
     await state.set_state(TeleOsint.telephone)
     await message.answer('Введи номер мобильного 📱 телефона жертвы 😭🥷. ')
 
-
 @router.message(TeleOsint.telephone)
 async def tele_infa(message: Message, state: FSMContext):
     # Начало поиска
@@ -1030,7 +1029,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
 
-    elif sure_name == 'Информация не найдена' and premium_by_us:
+    elif sure_name == 'Информация не найдена' :
         # Только МТС данные и премиум
         text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
                       f'├ Телефон: {message.text}\n'
@@ -1048,7 +1047,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
 
-    elif informatio_fio_mts == 'Информация не найдена' and premium_by_us:
+    elif informatio_fio_mts == 'Информация не найдена':
         # Только Велком данные и премиум
         regions_text = ''
         for city, data in region_data.items():
@@ -1079,7 +1078,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
 
-    elif premium_by_us:
+    else:
         # Полные данные с премиумом
         regions_text = ''
         for city, data in region_data.items():
@@ -1110,20 +1109,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона','')}</a>\n\n'
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
-    else:
-        # Бесплатная версия
-        text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
-                      f'├ Телефон: {message.text}\n'
-                      f'├ Оператор: {carrier1}\n'
-                      f'├ Тип: mobile\n'
-                      f'├ Регион: {timezone1}\n'
-                      f'├ Страна: {geocoder1}\n'
-                      f'├ Валид: {valid}\n'
-                      f'└ Существует: {possible}\n\n'
-                      f'📧 E-mail: {text_email}\n'
-                      f'📝 Телефонные книги: None\n\n'
-                      f'Ссылка: {tg_chat}\n'
-                      f'<b>🔃 Чтобы узнать больше, нужно купить 🔑 Подписку</b>')
+    
 
     # Отправка результата
     await message.reply(text_osint, parse_mode='HTML', reply_markup=keyboard)
@@ -1174,6 +1160,7 @@ async def tele_infa(message: Message, state: FSMContext):
     await asyncio.sleep(1)
     await message.answer('✅ Поиск закончен. Все данные выше.', reply_markup=start_mes)
     await state.clear()
+
 
 
 @router.message(F.content_type == ContentType.PHOTO)
