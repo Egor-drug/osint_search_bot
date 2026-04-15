@@ -264,7 +264,7 @@ async def broadcast_mess(message: Message, state: FSMContext, bot: Bot):
     count = 0
     for user in users_list:
         try:
-            await bot.send_message(user.telegram_id, broadcast_text)
+            await bot.send_message(str(user.telegram_id), broadcast_text)
             count += 1
         except Exception as e:
             print(f'Failed to send to {user.telegram_id}:{e}')
@@ -282,18 +282,25 @@ async def start(message: Message):
     # if await check_member(CHANEl_ID,message):
 
     db = SessionLocal()
-    exiting = db.query(User).filter(User.telegram_id == message.from_user.id).first()
+
+    exiting = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
     if not exiting:
-        new_user = User(telegram_id=message.from_user.id, name=message.from_user.full_name,register_at=datetime.now().isoformat())
+
+        new_user = User(telegram_id=str(message.from_user.id), name=message.from_user.full_name,
+                        register_at=datetime.now().isoformat())
         db.add(new_user)
         db.commit()
     db.close()
+
     if message.from_user.id == ADMIN_ID:
-       user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
-       user.premium = True
-       user.queries = 50
-       db.commit()
-       db.close()
+        db = SessionLocal()
+
+        user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+        if user:
+            user.premium = True
+            user.queries = 50
+            db.commit()
+        db.close()
 
     await message.answer_photo(
         photo='https://avatars.mds.yandex.net/i?id=026e7b7cf40d328b163e1db7cab9bed337c2b49e-5682063-images-thumbs&n=13',
@@ -301,8 +308,6 @@ async def start(message: Message):
         parse_mode='HTML', reply_markup=start_mes)
 
 
-# else:
-# await message.answer("🌍 Подпишитесь на канал",reply_markup=sub_check)
 
 
 @router.message(F.content_type == ContentType.USERS_SHARED)
@@ -414,7 +419,7 @@ async def process_pre_checkout_query(pre_checkout_query: PreCheckoutQuery):
 @router.message(F.successful_payment)
 async def process_successful_payment(message: Message):
     payment_system = message.successful_payment
-    payload = payment.invoice_payload  # Получаем payload
+    payload = message.successful_payment.invoice_payload
     user_id = str(message.from_user.id)
 
     db = SessionLocal()
@@ -809,6 +814,7 @@ async def tele_osint(message: Message, state: FSMContext):
     await state.set_state(TeleOsint.telephone)
     await message.answer('Введи номер мобильного 📱 телефона жертвы 😭🥷. ')
 
+
 @router.message(TeleOsint.telephone)
 async def tele_infa(message: Message, state: FSMContext):
     # Начало поиска
@@ -1161,7 +1167,6 @@ async def tele_infa(message: Message, state: FSMContext):
     await asyncio.sleep(1)
     await message.answer('✅ Поиск закончен. Все данные выше.', reply_markup=start_mes)
     await state.clear()
-
 
 
 
@@ -1654,26 +1659,46 @@ async def vk_searching(message: Message, state: FSMContext):
 
     await state.clear()
 
-@router.message(F.text == '🕵️ ️Мой профиль')
+
+@router.message(F.text == '🕵️ Мой профиль')
 async def profile(message: Message):
     db = SessionLocal()
 
-    # 1. Проверяем существующего пользователя
+    # Проверяем существующего пользователя
     user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
-    premium_by_us = user.premium
-    user_register_at = user.register_at
-    queries_user = user.queries
+
+    # Значения по умолчанию, если пользователь не найден
+    if user:
+        premium_by_us = user.premium
+        user_register_at = user.register_at
+        queries_user = user.queries
+    else:
+        premium_by_us = False
+        user_register_at = "Не зарегистрирован"
+        queries_user = 0
+
     db.close()
 
-    if premium_by_us is True:
-        premium_by_us = '✅'
-    else:
-        premium_by_us = '❌'
+    # Форматируем статус премиума
+    premium_status = '✅' if premium_by_us else '❌'
+
+    # TG Премиум (если атрибут есть)
+    tg_premium = '✅' if message.from_user.is_premium else '❌'
 
     await message.reply(
-        f'ℹ️ Вся необходимая информация о вашем профиле\n\n🏷️ <b>Имя:</b> <code>{message.from_user.full_name}</code>\n🔗<b>Username:</b> @{message.from_user.username}\n\n🆔 <b>Мой ID:</b> <code>{message.from_user.id}</code>\n📆 <b>Регистрация:</b> <code>{user_register_at}</code>\n🔃 <b>TG Премиум:</b> {message.from_user.is_premium}\n🧮 <b>Купленные запросы:</b> <code>{queries_user}</code>\n\n🔑 <b>Подписка:</b> {premium_by_us}\n🗣️ <b>Язык:</b> <b>{message.from_user.language_code}</b>\n\n💰 Твой баланс: <a href="tg://copy?text=0.00">0.00 RUB</a>\n',
-        reply_markup=json_user,parse_mode="HTML")
-
+        f'ℹ️ Вся необходимая информация о вашем профиле\n\n'
+        f'🏷️ <b>Имя:</b> <code>{message.from_user.full_name}</code>\n'
+        f'🔗 <b>Username:</b> @{message.from_user.username}\n\n'
+        f'🆔 <b>Мой ID:</b> <code>{message.from_user.id}</code>\n'
+        f'📆 <b>Регистрация:</b> <code>{user_register_at}</code>\n'
+        f'🔃 <b>TG Премиум:</b> {tg_premium}\n'
+        f'🧮 <b>Купленные запросы:</b> <code>{queries_user}</code>\n\n'
+        f'🔑 <b>Подписка:</b> {premium_status}\n'
+        f'🗣️ <b>Язык:</b> {message.from_user.language_code}\n\n'
+        f'💰 Твой баланс: <a href="tg://copy?text=0.00">0.00 RUB</a>',
+        reply_markup=json_user,
+        parse_mode="HTML"
+    )
 
 @router.callback_query(F.data == 'json')
 async def json(callback: CallbackQuery):
@@ -2056,7 +2081,7 @@ async def adding_admin(message: Message, state: FSMContext):
         await message.answer('❌ Пожалуйста, введите корректный числовой ID')
     finally:
         await state.clear()
-        
+
 @router.message(F.text.startswith('@'))
 async def user_osint(message: Message):
     username = message.text.strip()
