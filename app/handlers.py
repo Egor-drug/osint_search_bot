@@ -1074,7 +1074,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'├ 🏫 Образование:\n{element_school.strip()}\n'
                       f'├ 🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n'
                       f'├ 🔗 Ссылка на профиль: <a href="{profile_url_result}">Ссылка</a>\n'
-                      f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона','')}</a>\n\n'
+                      f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{vk_profile_info.replace("Местоположение: Определить местоположение по номеру телефона","")}</a>\n\n'
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
 
@@ -1106,7 +1106,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'📧 E-mail: {text_email}\n'
                       f'👤 Возможные анкеты:\n'
                       f'├ 🔗 Ссылка на профиль: <a href="{profile_url_result}">Ссылка</a>\n'
-                      f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона','')}</a>\n\n'
+                      f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{vk_profile_info.replace("Местоположение: Определить местоположение по номеру телефона','')}</a>\n\n'
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
     else:
