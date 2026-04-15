@@ -1078,7 +1078,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
 
-    else:
+    elif premium_by_us:
         # Полные данные с премиумом
         regions_text = ''
         for city, data in region_data.items():
@@ -1109,6 +1109,20 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона','')}</a>\n\n'
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
+    else:
+        # Бесплатная версия
+        text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
+                      f'├ Телефон: {message.text}\n'
+                      f'├ Оператор: {carrier1}\n'
+                      f'├ Тип: mobile\n'
+                      f'├ Регион: {timezone1}\n'
+                      f'├ Страна: {geocoder1}\n'
+                      f'├ Валид: {valid}\n'
+                      f'└ Существует: {possible}\n\n'
+                      f'📧 E-mail: {text_email}\n'
+                      f'📝 Телефонные книги: None\n\n'
+                      f'Ссылка: {tg_chat}\n'
+                      f'<b>🔃 Чтобы узнать больше, нужно купить 🔑 Подписку</b>')
     
 
     # Отправка результата
