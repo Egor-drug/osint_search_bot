@@ -969,7 +969,6 @@ async def tele_infa(message: Message, state: FSMContext):
 
                                 # Извлекаем дату рождения из текста
                                 if 'рождения' in vk_profile_info:
-                                    # Ищем дату в формате "дд.мм" или "дд месяц"
                                     date_match = re.search(r'(\d{1,2}\.\d{1,2})|\d{1,2}\s+\w+', vk_profile_info)
                                     if date_match:
                                         date_of_birthday = date_match.group()
@@ -1014,6 +1013,9 @@ async def tele_infa(message: Message, state: FSMContext):
          InlineKeyboardButton(text='🔴 Сайт', url='https://tg-user.id/from/username/')]
     ])
 
+    # Очищаем текст от лишнего
+    info_clean = vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона', '')
+
     # Формирование текста ответа
     if sure_name == 'Информация не найдена' and informatio_fio_mts == 'Информация не найдена':
         # Нет никаких данных
@@ -1029,7 +1031,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
 
-    elif sure_name == 'Информация не найдена' :
+    elif sure_name == 'Информация не найдена':
         # Только МТС данные и премиум
         text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
                       f'├ Телефон: {message.text}\n'
@@ -1047,90 +1049,68 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'📝 Телефонные книги: None\n\n'
                       f'Ссылка: {tg_chat}')
 
-elif informatio_fio_mts == 'Информация не найдена':
-    # Только Велком данные и премиум
-    regions_text = ''
-    for city, data in region_data.items():
-        regions_text += f'├ {city}: {data}\n'
+    elif informatio_fio_mts == 'Информация не найдена':
+        # Только Велком данные и премиум
+        regions_text = ''
+        for city, data in region_data.items():
+            regions_text += f'├ {city}: {data}\n'
 
-    vk_link = f'https://vk.com/search/people?q={sure_name}'
-    
-    # Очищаем текст от лишнего
-    info_clean = vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона', '')
+        vk_link = f'https://vk.com/search/people?q={sure_name}'
 
-    text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
-                  f'├ Телефон: {message.text}\n'
-                  f'├ Оператор: {carrier1}\n'
-                  f'├ Тип: mobile\n'
-                  f'├ Регион: {timezone1}\n'
-                  f'├ Страна: {geocoder1}\n'
-                  f'├ Валид: {valid}\n'
-                  f'└ Существует: {possible}\n\n'
-                  f'<b>Основные:</b>\n'
-                  f'├ 👤 ФИО: <code>{sure_name}</code>\n'
-                  f'├ Дата рождения: <i>{date_of_birthday}</i>\n'
-                  f'├ 🌐 VK: <a href="{vk_link}">Ссылка на VK здесь</a>\n'
-                  f'├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n\n'
-                  f'<b>👁️ Возможные Люди (домашний телефон {phone[-6:]})</b>:\n{regions_text}\n\n'
-                  f'📧 E-mail: {text_email}\n'
-                  f'👤 Возможные анкеты:\n'
-                  f'├ 🏫 Образование:\n{element_school.strip()}\n'
-                  f'├ 🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n'
-                  f'├ 🔗 Ссылка на профиль: <a href="{profile_url_result}">Ссылка</a>\n'
-                  f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{info_clean}</a>\n\n'
-                  f'📝 Телефонные книги: None\n\n'
-                  f'Ссылка: {tg_chat}')
+        text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
+                      f'├ Телефон: {message.text}\n'
+                      f'├ Оператор: {carrier1}\n'
+                      f'├ Тип: mobile\n'
+                      f'├ Регион: {timezone1}\n'
+                      f'├ Страна: {geocoder1}\n'
+                      f'├ Валид: {valid}\n'
+                      f'└ Существует: {possible}\n\n'
+                      f'<b>Основные:</b>\n'
+                      f'├ 👤 ФИО: <code>{sure_name}</code>\n'
+                      f'├ Дата рождения: <i>{date_of_birthday}</i>\n'
+                      f'├ 🌐 VK: <a href="{vk_link}">Ссылка на VK здесь</a>\n'
+                      f'├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n\n'
+                      f'<b>👁️ Возможные Люди (домашний телефон {phone[-6:]})</b>:\n{regions_text}\n\n'
+                      f'📧 E-mail: {text_email}\n'
+                      f'👤 Возможные анкеты:\n'
+                      f'├ 🏫 Образование:\n{element_school.strip()}\n'
+                      f'├ 🌐 Vk: <a href="https://vk.com/{elem_vk_id}">Ссылка на VK здесь</a>\n'
+                      f'├ 🔗 Ссылка на профиль: <a href="{profile_url_result}">Ссылка</a>\n'
+                      f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{info_clean}</a>\n\n'
+                      f'📝 Телефонные книги: None\n\n'
+                      f'Ссылка: {tg_chat}')
 
-elif premium_by_us:
-    # Полные данные с премиумом
-    regions_text = ''
-    for city, data in region_data.items():
-        regions_text += f'├ {city}: {data}\n'
+    else:
+        # Полные данные с премиумом
+        regions_text = ''
+        for city, data in region_data.items():
+            regions_text += f'├ {city}: {data}\n'
 
-    vk_link = f'https://vk.com/search/people?q={sure_name}'
-    
-    # Очищаем текст от лишнего
-    info_clean = vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона', '')
+        vk_link = f'https://vk.com/search/people?q={sure_name}'
 
-    text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
-                  f'├ Телефон: {message.text}\n'
-                  f'├ Оператор: {carrier1}\n'
-                  f'├ Тип: mobile\n'
-                  f'├ Регион: {timezone1}\n'
-                  f'├ Страна: {geocoder1}\n'
-                  f'├ Валид: {valid}\n'
-                  f'└ Существует: {possible}\n\n'
-                  f'<b>Основные:</b>\n'
-                  f'├ 👤 ФИО: <code>{sure_name}</code>\n'
-                  f'├ Дата рождения: <i>{date_of_birthday}</i>\n'
-                  f'├ 🌐 VK: <a href="{vk_link}">Ссылка на VK здесь</a>\n'
-                  f'├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n\n'
-                  f'🔎 Поиск по МТС:\n'
-                  f'├ 👤 ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n'
-                  f'├ 🏠 Адрес: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n'
-                  f'<b>👁️ Возможные Люди (домашний телефон {phone[-6:]})</b>:\n{regions_text}\n\n'
-                  f'📧 E-mail: {text_email}\n'
-                  f'👤 Возможные анкеты:\n'
-                  f'├ 🔗 Ссылка на профиль: <a href="{profile_url_result}">Ссылка</a>\n'
-                  f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{info_clean}</a>\n\n'
-                  f'📝 Телефонные книги: None\n\n'
-                  f'Ссылка: {tg_chat}')
-
-else:
-    # Бесплатная версия
-    text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
-                  f'├ Телефон: {message.text}\n'
-                  f'├ Оператор: {carrier1}\n'
-                  f'├ Тип: mobile\n'
-                  f'├ Регион: {timezone1}\n'
-                  f'├ Страна: {geocoder1}\n'
-                  f'├ Валид: {valid}\n'
-                  f'└ Существует: {possible}\n\n'
-                  f'📧 E-mail: {text_email}\n'
-                  f'📝 Телефонные книги: None\n\n'
-                  f'Ссылка: {tg_chat}\n'
-                  f'<b>🔃 Чтобы узнать больше, нужно купить 🔑 Подписку</b>')
-    
+        text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
+                      f'├ Телефон: {message.text}\n'
+                      f'├ Оператор: {carrier1}\n'
+                      f'├ Тип: mobile\n'
+                      f'├ Регион: {timezone1}\n'
+                      f'├ Страна: {geocoder1}\n'
+                      f'├ Валид: {valid}\n'
+                      f'└ Существует: {possible}\n\n'
+                      f'<b>Основные:</b>\n'
+                      f'├ 👤 ФИО: <code>{sure_name}</code>\n'
+                      f'├ Дата рождения: <i>{date_of_birthday}</i>\n'
+                      f'├ 🌐 VK: <a href="{vk_link}">Ссылка на VK здесь</a>\n'
+                      f'├ 🏠 ФИО и Адрес: <a href="tg://copy?text={informatio_fio},{telephone_txt}">{informatio_fio.strip()},{telephone_txt.strip()}</a>\n\n'
+                      f'🔎 Поиск по МТС:\n'
+                      f'├ 👤 ФИО: <a href="tg://copy?text={informatio_fio_mts}">{informatio_fio_mts}</a>\n'
+                      f'├ 🏠 Адрес: <a href="tg://copy?text={telephone_from_mts}">{telephone_from_mts}</a>\n\n'
+                      f'<b>👁️ Возможные Люди (домашний телефон {phone[-6:]})</b>:\n{regions_text}\n\n'
+                      f'📧 E-mail: {text_email}\n'
+                      f'👤 Возможные анкеты:\n'
+                      f'├ 🔗 Ссылка на профиль: <a href="{profile_url_result}">Ссылка</a>\n'
+                      f'├ 📝 Дополнительная информация:\n<a href="{gomelin_anket_url}">{info_clean}</a>\n\n'
+                      f'📝 Телефонные книги: None\n\n'
+                      f'Ссылка: {tg_chat}')
 
     # Отправка результата
     await message.reply(text_osint, parse_mode='HTML', reply_markup=keyboard)
@@ -1181,6 +1161,7 @@ else:
     await asyncio.sleep(1)
     await message.answer('✅ Поиск закончен. Все данные выше.', reply_markup=start_mes)
     await state.clear()
+
 
 
 
