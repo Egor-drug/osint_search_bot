@@ -203,7 +203,8 @@ def admin_main_menu():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📊‍ Статистика", callback_data='stats')],
         [InlineKeyboardButton(text='✉️ Рассылка', callback_data='broadcast')],
-        [InlineKeyboardButton(text='⚙️ Доп настройки', callback_data='settings')]
+        [InlineKeyboardButton(text='⚙️ Доп настройки', callback_data='settings')],
+        [InlineKeyboardButton(text='👤Пользователи',callback_data='users_data')]
     ])
     return keyboard
 
@@ -231,6 +232,25 @@ async def back_menu(callback: CallbackQuery):
     await callback.message.answer("", reply_markup=admin_main_menu())
     await callback.answer('')
 
+@router.callback_query(F.data == 'users_data')
+async def send_user_list(callback: CallbackQuery):
+    db = SessionLocal()
+    users = db.query(User).all()
+    db.close()
+
+    if not users:
+        await callback.answer("📭 Нет пользователей")
+        return
+
+    text = "👥 Список пользователей:\n\n"
+    for user in users:
+        name = user.name if user.name else "Без имени"
+        status = "✅" if user.active else "❌"
+        premium = "⭐" if user.premium else ""
+        text += f"{status} {premium} {user.telegram_id} | {name}\n"
+
+    await callback.message.answer(text)
+    await callback.answer()
 
 @router.callback_query(F.data == 'stats')
 async def stats_process(callback: CallbackQuery):
@@ -304,7 +324,7 @@ async def start(message: Message):
 
     await message.answer_photo(
         photo='https://avatars.mds.yandex.net/i?id=026e7b7cf40d328b163e1db7cab9bed337c2b49e-5682063-images-thumbs&n=13',
-        caption=f"Привет, детектив {message.from_user.first_name}! 🕵️‍♂️ Готов к расследованию? Отправляй мне любую зацепку: номер, никнейм, фото или ссылку. Я помогу найти то, что скрыто в цифровой тени. Вместе мы раскроем любое дело! 🔍✨ Включай логику и давай начинать. Жду твою первую задачу!\n<b>Вот ссылка на бот</b>: https://t.me/sherlocks_find_bot",
+        caption=f"Привет, детектив {message.from_user.first_name}! 🕵️‍♂️ Готов к расследованию? Отправляй мне любую зацепку: номер, никнейм, фото или ссылку. Я помогу найти то, что скрыто в цифровой тени. Вместе мы раскроем любое дело! 🔍✨ Включай логику и давай начинать. Жду твою первую задачу!\n🔀 Вот ссылка на сервис: <a href='https://spravochnik109.link/byelarus/vityebskaya-oblast/'>Ссылка</a>\n<b>Вот ссылка на бот</b>: https://t.me/sherlocks_find_bot",
         parse_mode='HTML', reply_markup=start_mes)
 
 
@@ -821,11 +841,13 @@ async def tele_infa(message: Message, state: FSMContext):
     bot_message = await message.answer("🔍 Идет поиск информации...")
     await state.update_data(telephone=message.text)
     gomelin_anket_url = ''
-    # Проверка премиум статуса
+
+    # Проверка премиум статуса и количества запросов
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
         premium_by_us = user.premium if user else False
+        queries_left = user.queries if user else 0
     finally:
         db.close()
 
@@ -862,6 +884,7 @@ async def tele_infa(message: Message, state: FSMContext):
     elem_vk_id = 'Не найдено'
     profile_url_result = 'Не найдено'
     vk_profile_info = 'Не найдено'
+    data_found = False  # Флаг, были ли найдены данные
 
     # Данные по регионам
     region_data = {
@@ -882,6 +905,7 @@ async def tele_infa(message: Message, state: FSMContext):
         text_table = soup.find(class_='%s')
         if text_table:
             informatio_fio = text_table.text.replace('-', '').replace(phone[-7:], '')
+            data_found = True
     except:
         pass
 
@@ -895,6 +919,7 @@ async def tele_infa(message: Message, state: FSMContext):
             fio_element = soup.find('td', class_='fio')
             if fio_element:
                 informatio_fio_mts = fio_element.text
+                data_found = True
                 phone_element = soup.find('td', class_='adr')
                 if phone_element:
                     telephone_from_mts = phone_element.text.strip()
@@ -918,6 +943,7 @@ async def tele_infa(message: Message, state: FSMContext):
             fio_text = fio_name.replace("Телефоны", "").strip()
             name_user = re.sub(r'[^\w\s]+|[\d]+', r'', fio_text)
             sure_name = name_user.replace(' XXX', '')
+            data_found = True
 
             # Поиск по регионам
             regions = {
@@ -938,6 +964,7 @@ async def tele_infa(message: Message, state: FSMContext):
                         city_addr = city_soup.find('td', class_='adr')
                         addr_text = city_addr.text if city_addr else ''
                         region_data[city] = f'<a href="tg://copy?text=">{city_fio.text.strip()}</a> Адрес: {addr_text}'
+                        data_found = True
                 except:
                     pass
 
@@ -963,6 +990,7 @@ async def tele_infa(message: Message, state: FSMContext):
                             profile_url = f'https://gomelin.com{profile_link.get("href")}'
                             profile_url_result = profile_url
                             gomelin_anket_url = profile_url
+                            data_found = True
 
                             # Переходим по ссылке профиля
                             prof_resp = requests.get(profile_url, headers=headers, timeout=10)
@@ -1001,6 +1029,56 @@ async def tele_infa(message: Message, state: FSMContext):
     except:
         pass
 
+    # ⭐⭐⭐ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Проверка и списание запроса ⭐⭐⭐
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+
+        if not user:
+            await message.answer("❌ Пользователь не найден. Используйте /start")
+            await state.clear()
+            return
+
+        # Если данные найдены И пользователь НЕ премиум
+        if data_found and not user.premium:
+            # Проверяем, есть ли запросы
+            if user.queries <= 0:
+                await message.answer(
+                    "❌ *У вас закончились бесплатные запросы!*\n\n"
+                    "Приобретите премиум, чтобы продолжить пользоваться ботом:\n"
+                    "👉 /premium",
+                    parse_mode="Markdown"
+                )
+                await state.clear()
+                return
+
+            # Списание одного запроса
+            user.queries -= 1
+            db.commit()
+
+            # Уведомление о списании (опционально)
+            await message.answer(
+                f"📊 *Списано 1 запрос*\n"
+                f"Осталось запросов: {user.queries}\n"
+                f"Приобретите премиум за /premium для безлимита!",
+                parse_mode="Markdown"
+            )
+
+        # Если данные НЕ найдены - не списываем, но отправляем сообщение
+        elif not data_found:
+            await message.answer(
+                "🔍 *Информация не найдена*\n\n"
+                "Запрос не был списан. Попробуйте другой номер.",
+                parse_mode="Markdown"
+            )
+            await state.clear()
+            return
+
+    except Exception as e:
+        print(f"Ошибка при работе с БД: {e}")
+    finally:
+        db.close()
+
     # Генерация email
     num_dump = random.randint(0, 6)
     emails = []
@@ -1009,7 +1087,7 @@ async def tele_infa(message: Message, state: FSMContext):
     text_email = ' '.join(emails)
 
     # Формирование ссылок
-    tg_chat = f'https://t.me/{phone}'
+    tg_chat = f'https://t.me/+{phone}'
 
     # Клавиатура
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -1022,7 +1100,7 @@ async def tele_infa(message: Message, state: FSMContext):
     # Очищаем текст от лишнего
     info_clean = vk_profile_info.replace('Местоположение: Определить местоположение по номеру телефона', '')
 
-    # Формирование текста ответа
+    # Формирование текста ответа (оставляем как было)
     if sure_name == 'Информация не найдена' and informatio_fio_mts == 'Информация не найдена':
         # Нет никаких данных
         text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
@@ -1038,7 +1116,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'Ссылка: {tg_chat}')
 
     elif sure_name == 'Информация не найдена':
-        # Только МТС данные и премиум
+        # Только МТС данные
         text_osint = (f'<b>Поиск 🤖💻📱 прошел успешно</b>:\n\n'
                       f'├ Телефон: {message.text}\n'
                       f'├ Оператор: {carrier1}\n'
@@ -1056,7 +1134,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'Ссылка: {tg_chat}')
 
     elif informatio_fio_mts == 'Информация не найдена':
-        # Только Велком данные и премиум
+        # Только Велком данные
         regions_text = ''
         for city, data in region_data.items():
             regions_text += f'├ {city}: {data}\n'
@@ -1087,7 +1165,7 @@ async def tele_infa(message: Message, state: FSMContext):
                       f'Ссылка: {tg_chat}')
 
     else:
-        # Полные данные с премиумом
+        # Полные данные
         regions_text = ''
         for city, data in region_data.items():
             regions_text += f'├ {city}: {data}\n'
@@ -1167,7 +1245,6 @@ async def tele_infa(message: Message, state: FSMContext):
     await asyncio.sleep(1)
     await message.answer('✅ Поиск закончен. Все данные выше.', reply_markup=start_mes)
     await state.clear()
-
 
 
 @router.message(F.content_type == ContentType.PHOTO)
