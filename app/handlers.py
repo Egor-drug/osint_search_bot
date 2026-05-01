@@ -39,6 +39,8 @@ Currency = 'XTR'
 CHANEl_ID = '-1002939673303'
 ADMIN_ID = ADMIN_ID
 
+VEKTOR_API_TOKEN = "B6j1EMtU9oAf57MlMX6wcZZ4i7lVBK6"  # замените на ваш токен
+VEKTOR_BASE_URL = "https://infoapi24.store"
 
 vk_session = vk_api.VkApi(token=vk_token)
 vk = vk_session.get_api()
@@ -387,6 +389,29 @@ async def money_key(message: Message):
     ])
     await message.answer('🔃 Выберите вариант:', reply_markup=keyboard)
 
+@router.message(Command('premium'))
+async def premium_getting(message: Message):
+    prices = [LabeledPrice(label="XTR", amount=250)]
+
+    db = SessionLocal()
+    user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+
+    if user and user.premium:
+        await message.answer('❌ У вас уже есть подписка!')
+        db.close()
+        return
+
+    db.close()
+
+    await message.answer_invoice(
+        title='🔑 Premium подписка',
+        description='• 50 запросов в месяц\n• Доступ к расширенному поиску\n• Приоритетная поддержка',
+        prices=prices,
+        provider_token='',
+        payload='premium_subscription',
+        currency='XTR',
+        reply_markup=payment
+    )
 
 @router.callback_query(F.data == 'subscribe')
 async def premium_getting(callback: CallbackQuery):
@@ -459,7 +484,7 @@ async def process_successful_payment(message: Message):
         db.commit()
 
         await message.answer(
-            f"✅ **Premium 🔑одписка активирована!**\n\n"
+            f"✅ **Premium 🔑Подписка активирована!**\n\n"
             f"⭐ Получено: {payment.total_amount} звёзд\n"
             f"📊 Добавлено запросов: 50\n"
             f"💎 Срок действия: 30 дней\n\n"
@@ -1060,7 +1085,7 @@ async def tele_infa(message: Message, state: FSMContext):
             await message.answer(
                 f"📊 *Списано 1 запрос*\n"
                 f"Осталось запросов: {user.queries}\n"
-                f"Приобретите премиум за /premium для безлимита!",
+                f"Приобретите премиум за 🔑Подписку /premium для безлимита в этой функции!",
                 parse_mode="Markdown"
             )
 
@@ -1987,62 +2012,91 @@ async def search_phoned(message: Message, state: FSMContext):
         await message.answer(f"❌ <b>Ошибка:</b> {str(e)}")
 
 
-
-
-
 @router.message(F.text == '👁️ Глаз Бога')
-async def eye_of_god(message:Message,state:FSMContext):
+async def eye_of_god(message: Message, state: FSMContext):
     db = SessionLocal()
     user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
     premium_user = user.premium
     db.close()
-    if premium_user is True:
-       await message.answer('Введи номер мобильного 📱 телефона жертвы 😭🥷.')
-       await state.set_state(God.phone)
-       return
+
+    if premium_user:
+        await message.answer('📱 Введи номер мобильного телефона жертвы (в любом формате):')
+        await state.set_state(God.phone)
+        return
     else:
-       await message.answer('❌ Чтобы использовать данную функцию нужно иметь 🔑 <b>Подписку</b>',parse_mode="HTML")
-       return
+        await message.answer('❌ Чтобы использовать данную функцию нужно иметь 🔑 <b>Подписку</b>', parse_mode="HTML")
+        return
+
 
 @router.message(God.phone)
-async def eye_of_god(message:Message,state:FSMContext):
-    phone = message.text.strip().replace(' ','').replace('+','').replace('-','')
+async def eye_of_god_process(message: Message, state: FSMContext):
+    # Очищаем номер телефона
+    phone = message.text.strip().replace(' ', '').replace('+', '').replace('-', '')
 
     db = SessionLocal()
     user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
     queries_user = user.queries
 
-    if queries_user > 1:
-        payload = {
-           "token": "18baca3d-3abc-4f49-b91b-65eced749e29",
-           "query": f"{phone}"
-        }
+    # Проверяем, хватает ли запросов (нужно 2 для VEKTOR)
+    if queries_user >= 2:
+        # --- НОВЫЙ ПОИСК ЧЕРЕЗ VEKTOR API ---
+        try:
+            # Используем метод name_by_phone для получения ФИО + даты рождения
+            url = f"{VEKTOR_BASE_URL}/api/{VEKTOR_API_TOKEN}/name_by_phone/{phone}"
+            response = requests.get(url, timeout=30)
+            data = response.json()
 
-        response = requests.post(
-             "https://api.dyxless.at/query",
-             json=payload,
-             headers={"Content-Type": "application/json"}
-        )
-        data = response.json()
-        text = ''
-        status = data.get('status')
-        if status is False:
-            text = f'🔴 {data.get("message")}'
-        else:
-            text = f"<b>Поиск  ️🤖💻📱 прошел успешно</b>:\n👁️ Контент{data.get('data')}"
+            if "error" in data:
+                await message.answer(f"❌ Ошибка VEKTOR API: {data['error']}")
+                await state.clear()
+                db.close()
+                return
 
-        await message.answer(f'{text}')
-        await state.clear()
+            result = data.get("result", {})
+            name = result.get("name", "Не найдено")
+            birth_date = result.get("birth_date", "Не найдено")
 
-        user.queries = user.queries - 1
-        db.commit()
+            # Дополнительно делаем чекер по базам (опционально, можно убрать)
+            checker_url = f"{VEKTOR_BASE_URL}/api/{VEKTOR_API_TOKEN}/base_checker/{phone}"
+            checker_response = requests.get(checker_url, timeout=30)
+            checker_data = checker_response.json()
 
+            bases_info = ""
+            if "result" in checker_data and checker_data["result"].get("found"):
+                stats = checker_data["result"].get("stats", {})
+                bases_info = "\n\n📊 <b>Найден в базах:</b>\n"
+                for base_name, count in list(stats.items())[:5]:  # показываем первые 5 баз
+                    bases_info += f"   • {base_name}: {count} записей\n"
+
+            # Формируем красивый ответ
+            text = (
+                f"🔍 <b>Результат поиска (VEKTOR API)</b>\n\n"
+                f"📱 <b>Телефон:</b> <code>{phone}</code>\n"
+                f"👤 <b>ФИО:</b> {name.upper()}\n"
+                f"🎂 <b>Дата рождения:</b> {birth_date}\n"
+                f"{bases_info}\n"
+                f"💎 <b>Списано запросов:</b> 2"
+            )
+
+            # Списание 2 запросов
+            user.queries = user.queries - 2
+            db.commit()
+
+            await message.answer(text, parse_mode="HTML")
+
+        except requests.exceptions.RequestException as e:
+            await message.answer(f"❌ Ошибка соединения с VEKTOR API: {str(e)}")
+        except Exception as e:
+            await message.answer(f"❌ Непредвиденная ошибка: {str(e)}")
     else:
-        await message.answer(f'🔴 У вас не хватает запросов ,Подписку🔑 можно купить в конце месяца.')
+        await message.answer(
+            f'🔴 У вас недостаточно запросов (нужно 2).\n'
+            f'🎫 Ваш баланс: {queries_user} запросов.\n'
+            f'Подписку можно купить в конце месяца.'
+        )
         await state.clear()
 
     db.close()
-
 
 
 
