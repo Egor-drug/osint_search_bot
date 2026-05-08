@@ -2,15 +2,11 @@ from sqlalchemy import create_engine, String, Integer, Column, DateTime, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import datetime
-import os
 
-# Берем DATABASE_URL из переменных окружения Render
-DATABASE_URL = os.environ.get('DATABASE_URL')
+# SQLite база данных
+DATABASE_URL = 'sqlite:///./admin.db'
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
-if not DATABASE_URL:
-    raise Exception("DATABASE_URL environment variable not set!")
-
-engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
