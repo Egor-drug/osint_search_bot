@@ -301,34 +301,46 @@ async def broadcast_mess(message: Message, state: FSMContext, bot: Bot):
 
 @router.message(CommandStart())
 async def start(message: Message):
-    # if await check_member(CHANEl_ID,message):
-
     db = SessionLocal()
-
-    exiting = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
-    if not exiting:
-
-        new_user = User(telegram_id=str(message.from_user.id), name=message.from_user.full_name,
-                        register_at=datetime.now().isoformat())
+    
+    # Ищем пользователя
+    user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+    
+    if user:
+        # Обновляем имя, если оно отсутствует, равно None или равно "Без имени"
+        if not user.name or user.name == "Без имени" or user.name != message.from_user.full_name:
+            user.name = message.from_user.full_name
+            db.commit()
+    else:
+        # Новый пользователь — создаём запись
+        new_user = User(
+            telegram_id=str(message.from_user.id),
+            name=message.from_user.full_name,
+            register_at=datetime.now().isoformat(),
+            active=True,
+            premium=False,
+            queries=0
+        )
         db.add(new_user)
         db.commit()
-    db.close()
-
+    
+    # Выдача премиум админу
     if message.from_user.id == ADMIN_ID:
-        db = SessionLocal()
-
-        user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
-        if user:
-            user.premium = True
-            user.queries = 50
+        admin_user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+        if admin_user:
+            admin_user.premium = True
+            admin_user.queries = 50
             db.commit()
-        db.close()
-
+    
+    db.close()
+    
+    # Приветственное сообщение
     await message.answer_photo(
         photo='https://avatars.mds.yandex.net/i?id=026e7b7cf40d328b163e1db7cab9bed337c2b49e-5682063-images-thumbs&n=13',
         caption=f"Привет, детектив {message.from_user.first_name}! 🕵️‍♂️ Готов к расследованию? Отправляй мне любую зацепку: номер, никнейм, фото или ссылку. Я помогу найти то, что скрыто в цифровой тени. Вместе мы раскроем любое дело! 🔍✨ Включай логику и давай начинать. Жду твою первую задачу!\n🔀 Вот ссылка на сервис: <a href='https://spravochnik109.link/byelarus/vityebskaya-oblast/'>Ссылка</a>\n<b>Вот ссылка на бот</b>: https://t.me/sherlocks_find_bot",
-        parse_mode='HTML', reply_markup=start_mes)
-
+        parse_mode='HTML',
+        reply_markup=start_mes
+    )
 
 
 
@@ -384,7 +396,7 @@ async def menu(message: Message):
 @router.message(F.text == '💰 Пополнить')
 async def money_key(message: Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='🔑 Подписка ', callback_data='subscribe')],
+        [InlineKeyboardButton(text='💳 Подписка ', callback_data='subscribe')],
         [InlineKeyboardButton(text='🤝 Поддержка бота', callback_data='support_bot')]
     ])
     await message.answer('🔃 Выберите вариант:', reply_markup=keyboard)
@@ -397,14 +409,14 @@ async def premium_getting(message: Message):
     user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
 
     if user and user.premium:
-        await message.answer('❌ У вас уже есть подписка!')
+        await message.answer('❌ У вас уже есть 💳 подписка!')
         db.close()
         return
 
     db.close()
 
     await message.answer_invoice(
-        title='🔑 Premium подписка',
+        title='💳 Premium подписка',
         description='• 50 запросов в месяц\n• Доступ к расширенному поиску\n• Приоритетная поддержка',
         prices=prices,
         provider_token='',
@@ -421,7 +433,7 @@ async def premium_getting(callback: CallbackQuery):
     user = db.query(User).filter(User.telegram_id == str(callback.from_user.id)).first()
 
     if user and user.premium:
-        await callback.answer('❌ У вас уже есть подписка!', show_alert=True)
+        await callback.answer('❌ У вас уже есть 💳 подписка!', show_alert=True)
         db.close()
         return
 
@@ -429,7 +441,7 @@ async def premium_getting(callback: CallbackQuery):
     await callback.answer('')
 
     await callback.message.answer_invoice(
-        title='🔑 Premium подписка',
+        title='💳 Premium подписка',
         description='• 50 запросов в месяц\n• Доступ к расширенному поиску\n• Приоритетная поддержка',
         prices=prices,
         provider_token='',
@@ -484,7 +496,7 @@ async def process_successful_payment(message: Message):
         db.commit()
 
         await message.answer(
-            f"✅ **Premium 🔑Подписка активирована!**\n\n"
+            f"✅ **Premium 💳 Подписка активирована!**\n\n"
             f"⭐ Получено: {payment.total_amount} звёзд\n"
             f"📊 Добавлено запросов: 50\n"
             f"💎 Срок действия: 30 дней\n\n"
@@ -532,7 +544,7 @@ async def snoser_starting(message: Message, state: FSMContext):
     if premium_user is True:
         await message.answer('Выберите пункт для sn0singa', reply_markup=keyboard)
     else:
-        await message.answer('❌ У вас нет 🔑Подписки в боте')
+        await message.answer('❌ У вас нет 💳 Подписки в боте')
 
 
 @router.callback_query(F.data == 'snos_by_text')
@@ -1085,7 +1097,7 @@ async def tele_infa(message: Message, state: FSMContext):
             await message.answer(
                 f"📊 *Списано 1 запрос*\n"
                 f"Осталось запросов: {user.queries}\n"
-                f"Приобретите премиум за 🔑Подписку /premium для безлимита в этой функции!",
+                f"Приобретите премиум за 💳 Подписку /premium для безлимита в этой функции!",
                 parse_mode="Markdown"
             )
 
@@ -1521,12 +1533,12 @@ async def ddos_start(message: Message, state: FSMContext):
     premium_by_us = user.premium
 
     db.close()
-    if premium_by_us is True:
+    if message.from_user.id == ADMIN_ID:
         await state.set_state(Ddoss.target)
-        await message.answer("Введите URL 🔎 жертвы 🌍💻 ")
+        await message.answer("Введите URL 🔎🌍💻 ")
     else:
         await state.clear()
-        await message.answer("❌ У вас отсутствует 🔑 Подписка в боте")
+        await message.answer("❌ У вас отсутствует 🔑 Admin в боте")
 
 
 @router.message(Ddoss.target)
@@ -1544,7 +1556,7 @@ async def ddos(message: Message, state: FSMContext):
         await state.update_data(target=message.text)
         await state.set_state(Ddoss.number)
 
-        await message.answer('Введи количество пакетов🛍️ не больше 100')
+        await message.answer('Введи количество пакетов🛍️ не больше 30')
     else:
         await message.answer('Это не URL попробуй заново.')
         await state.clear()
@@ -1558,7 +1570,7 @@ async def ddosing(message: Message, state: FSMContext):
 
     sockets = int(message.text)
     print(target, sockets)
-    if sockets >= 100:
+    if sockets >= 30:
         sockets = 10
     else:
         sockets = sockets
@@ -1795,7 +1807,7 @@ async def profile(message: Message):
         f'📆 <b>Регистрация:</b> <code>{user_register_at}</code>\n'
         f'🔃 <b>TG Премиум:</b> {tg_premium}\n'
         f'🧮 <b>Купленные запросы:</b> <code>{queries_user}</code>\n\n'
-        f'🔑 <b>Подписка:</b> {premium_status}\n'
+        f'💳 <b>Подписка:</b> {premium_status}\n'
         f'🗣️ <b>Язык:</b> {message.from_user.language_code}\n\n'
         f'💰 Твой баланс: <a href="tg://copy?text=0.00">0.00 RUB</a>',
         reply_markup=json_user,
@@ -2024,7 +2036,7 @@ async def eye_of_god(message: Message, state: FSMContext):
         await state.set_state(God.phone)
         return
     else:
-        await message.answer('❌ Чтобы использовать данную функцию нужно иметь 🔑 <b>Подписку</b>', parse_mode="HTML")
+        await message.answer('❌ Чтобы использовать данную функцию нужно иметь 💳 <b>Подписку</b>', parse_mode="HTML")
         return
 
 
@@ -2191,7 +2203,7 @@ async def adding_admin(message: Message, state: FSMContext):
             user.premium = True
             user.queries = 10
             db.commit()
-            await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов. Пользователь получил 🔑 Премиум и 10 запросов')
+            await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов. Пользователь получил 💳 Премиум и 10 запросов')
         else:
             # Если пользователя нет в базе — создаём нового
             new_user = User(
@@ -2204,7 +2216,7 @@ async def adding_admin(message: Message, state: FSMContext):
             )
             db.add(new_user)
             db.commit()
-            await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов и создан в БД. Пользователь получил 🔑 Премиум и 10 запросов')
+            await message.answer(f'✅ ID {admin_id} успешно добавлен в список администраторов и создан в БД. Пользователь получил 💳 Премиум и 10 запросов')
 
         db.close()
 
