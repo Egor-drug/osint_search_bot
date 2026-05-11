@@ -17,9 +17,9 @@ start_mes = ReplyKeyboardMarkup(keyboard=[
 )
 
 menu_mes = ReplyKeyboardMarkup(keyboard=[
-  [KeyboardButton(text = '💼 Dos'),KeyboardButton(text='👁️ Глаз Бога')],
+  [KeyboardButton(text = '💣 Бомбер'),KeyboardButton(text='👁️ Глаз Бога')],
   [KeyboardButton(text='📊 Статистика'),KeyboardButton(text='💰 Пополнить')],
-  [KeyboardButton(text='🕵️ Мой профиль'),KeyboardButton(text='🔵 VK')]
+  [KeyboardButton(text='🕵️ ️Мой профиль'),KeyboardButton(text='🔵 VK')]
 
 ],
   resize_keyboard=True
