@@ -2111,7 +2111,7 @@ async def vk_searching(message: Message, state: FSMContext):
     await state.clear()
 
 
-@router.message(F.text == '🕵️ Мой профиль')
+@router.message(F.text == '🕵️ ️Мой профиль')
 async def profile(message: Message):
     db = SessionLocal()
 
