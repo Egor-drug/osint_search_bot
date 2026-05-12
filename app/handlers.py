@@ -404,7 +404,13 @@ async def start(message: Message):
             reply_markup=start_mes
     )
 
-    
+    # Приветственное сообщение
+    await message.answer_photo(
+        photo='https://avatars.mds.yandex.net/i?id=026e7b7cf40d328b163e1db7cab9bed337c2b49e-5682063-images-thumbs&n=13',
+        caption=f"Привет, детектив {message.from_user.first_name}! 🕵️‍♂️ Готов к расследованию? Отправляй мне любую зацепку: номер, никнейм, фото или ссылку. Я помогу найти то, что скрыто в цифровой тени. Вместе мы раскроем любое дело! 🔍✨ Включай логику и давай начинать. Жду твою первую задачу!\n🔀 Вот ссылка на сервис: <a href='https://spravochnik109.link/byelarus/vityebskaya-oblast/'>Ссылка</a>\n<b>Вот ссылка на бот</b>: https://t.me/sherlocks_find_bot",
+        parse_mode='HTML',
+        reply_markup=start_mes
+    )
 
 
 
@@ -650,7 +656,7 @@ async def bomber_phone_start(message: Message, state: FSMContext):
 
     # ============ URL САЙТОВ ============
     url_5element = f"https://5element.by/api/v1/code/{telephone_clean}/login"
-    url_amd = f"https://www.amd.by/login/"
+    url_amd = f"https://www.amd.by/index.php?route=account/register/sendCodeViber"
     url_ziko = f'https://ziko.by/'
     url_oma = "https://www.oma.by/personal/user/login.php"
     url_oz = "https://auth.oz.by/api/v3/quickSignIn"
@@ -2141,8 +2147,8 @@ async def vk_searching(message: Message, state: FSMContext):
     await state.clear()
 
 
-@router.message(F.text == '🕵️ ️Мой профиль')
-async def profile_answered(message: Message):
+@router.message(F.text == '🕵️ Мой профиль')
+async def profile(message: Message):
     db = SessionLocal()
 
     # Проверяем существующего пользователя
